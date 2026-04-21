@@ -1,6 +1,16 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Protected routes — anything starting with these requires auth
+const PROTECTED_PREFIXES = [
+  '/feed',
+  '/explore',
+  '/watchlist',
+  '/leaderboard',
+  '/profile',
+  '/onboarding',
+]
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -27,11 +37,17 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Public routes
-  const publicRoutes = ['/', '/login', '/signup', '/onboarding']
-  const isPublic = publicRoutes.some(r => pathname === r || pathname.startsWith('/api'))
+  // API routes and Next.js internals are always public
+  if (pathname.startsWith('/api') || pathname.startsWith('/_next')) {
+    return supabaseResponse
+  }
 
-  if (!user && !isPublic) {
+  // Check if this path requires auth (whitelist approach)
+  const requiresAuth = PROTECTED_PREFIXES.some(prefix =>
+    pathname === prefix || pathname.startsWith(prefix + '/')
+  )
+
+  if (!user && requiresAuth) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
