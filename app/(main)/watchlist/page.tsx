@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 interface WatchlistItem {
@@ -22,10 +23,26 @@ interface QuoteMap {
   }
 }
 
+interface UserPrediction {
+  ticker: string
+  prediction: string
+  price_at_prediction: number
+  created_at: string
+}
+
+interface CardSentiment {
+  ticker: string
+  bull_percent: number
+  bear_percent: number
+}
+
 export default function WatchlistPage() {
+  const router = useRouter()
   const supabase = createClient()
   const [items, setItems] = useState<WatchlistItem[]>([])
   const [quotes, setQuotes] = useState<QuoteMap>({})
+  const [userPredictions, setUserPredictions] = useState<Record<string, UserPrediction>>({})
+  const [cardSentiments, setCardSentiments] = useState<Record<string, CardSentiment>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -35,23 +52,66 @@ export default function WatchlistPage() {
   async function loadWatchlist() {
     setLoading(true)
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const userId = user?.id
+
       const res = await fetch('/api/watchlist')
       const data = await res.json()
       const list: WatchlistItem[] = data.watchlist ?? []
       setItems(list)
 
-      // Fetch quotes for all tickers
+      const tickers = list.map(i => i.ticker)
+
+      // Fetch quotes, user predictions, and card sentiment in parallel
+      const [quoteResults, predRows, sentimentRows] = await Promise.all([
+        Promise.all(
+          list.map(async item => {
+            try {
+              const r = await fetch(`/api/stocks/${item.ticker}`)
+              const d = await r.json()
+              return { ticker: item.ticker, quote: d.quote ?? null }
+            } catch {
+              return { ticker: item.ticker, quote: null }
+            }
+          })
+        ),
+        userId
+          ? supabase
+              .from('predictions')
+              .select('ticker, prediction, price_at_prediction, created_at')
+              .eq('user_id', userId)
+              .order('created_at', { ascending: false })
+              .then(r => r.data ?? [])
+          : Promise.resolve([]),
+        tickers.length > 0
+          ? supabase
+              .from('jump_cards')
+              .select('ticker, bull_percent, bear_percent')
+              .in('ticker', tickers)
+              .then(r => r.data ?? [])
+          : Promise.resolve([]),
+      ])
+
+      // Build quote map
       const quoteMap: QuoteMap = {}
-      await Promise.all(
-        list.map(async item => {
-          try {
-            const r = await fetch(`/api/stocks/${item.ticker}`)
-            const d = await r.json()
-            if (d.quote) quoteMap[item.ticker] = d.quote
-          } catch { /* skip */ }
-        })
-      )
+      for (const { ticker, quote } of quoteResults) {
+        if (quote) quoteMap[ticker] = quote
+      }
       setQuotes(quoteMap)
+
+      // Build user prediction map (most recent per ticker)
+      const predMap: Record<string, UserPrediction> = {}
+      for (const pred of (predRows as UserPrediction[])) {
+        if (!predMap[pred.ticker]) predMap[pred.ticker] = pred
+      }
+      setUserPredictions(predMap)
+
+      // Build card sentiment map
+      const sentMap: Record<string, CardSentiment> = {}
+      for (const row of (sentimentRows as CardSentiment[])) {
+        sentMap[row.ticker] = row
+      }
+      setCardSentiments(sentMap)
     } catch { /* skip */ }
     setLoading(false)
   }
@@ -105,13 +165,30 @@ export default function WatchlistPage() {
               const quote = quotes[item.ticker]
               const isUp = (quote?.dp ?? 0) >= 0
               const pred = item.predictions
+              const userPred = userPredictions[item.ticker]
+              const sentiment = cardSentiments[item.ticker]
+              const bull = sentiment?.bull_percent ?? 50
+              const bear = sentiment?.bear_percent ?? 50
 
               return (
                 <div key={item.id} className="bg-[#12121a] rounded-2xl border border-[#2a2a3a] p-4">
                   {/* Header row */}
-                  <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-start justify-between mb-2">
                     <div>
-                      <div className="text-lg font-black text-white">{item.ticker}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-lg font-black text-white">{item.ticker}</div>
+                        {/* JUMP link */}
+                        <button
+                          onClick={() => router.push('/feed')}
+                          className="text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full"
+                          style={{
+                            background: 'linear-gradient(135deg, #1B3066, #C9A84C)',
+                            color: '#fff',
+                          }}
+                        >
+                          JUMP
+                        </button>
+                      </div>
                       {quote ? (
                         <div className={`text-sm font-bold ${isUp ? 'text-[#00C805]' : 'text-[#FF3B30]'}`}>
                           ${quote.c?.toFixed(2)}{' '}
@@ -131,8 +208,42 @@ export default function WatchlistPage() {
                     </button>
                   </div>
 
-                  {/* Prediction status */}
-                  {pred && (
+                  {/* Your call badge */}
+                  {userPred && (
+                    <div className="mb-2">
+                      <span
+                        className="text-xs font-bold px-2 py-0.5 rounded-full"
+                        style={{
+                          background: userPred.prediction === 'bullish' ? 'rgba(0,200,5,0.12)' : 'rgba(255,59,48,0.12)',
+                          color: userPred.prediction === 'bullish' ? '#00C805' : '#FF3B30',
+                          border: `1px solid ${userPred.prediction === 'bullish' ? 'rgba(0,200,5,0.25)' : 'rgba(255,59,48,0.25)'}`,
+                        }}
+                      >
+                        Your call: {userPred.prediction === 'bullish' ? '🐂 Bullish' : '🐻 Bearish'}
+                      </span>
+                      <span className="text-[#6b7280] text-[10px] ml-2">
+                        @ ${userPred.price_at_prediction?.toFixed(2)} · {new Date(userPred.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Community sentiment mini-bar */}
+                  <div className="mb-3">
+                    <div className="flex justify-between items-center mb-0.5">
+                      <span className="text-[10px] text-[#00C805] font-bold">🐂 {bull}%</span>
+                      <span className="text-[9px] text-[#6b7280]">Community</span>
+                      <span className="text-[10px] text-[#FF3B30] font-bold">{bear}% 🐻</span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full overflow-hidden bg-[#FF3B30]/30">
+                      <div
+                        className="h-full rounded-full bg-[#00C805]"
+                        style={{ width: `${bull}%`, transition: 'width 0.6s ease' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Prediction status (legacy from API) */}
+                  {pred && !userPred && (
                     <div className="mb-3 flex items-center gap-2">
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                         pred.prediction === 'bullish'

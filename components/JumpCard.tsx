@@ -197,12 +197,46 @@ export default function JumpCard({
         {/* Main content */}
         <div className="flex-1 px-5 overflow-y-auto">
           <h3 className="text-white font-bold text-base leading-snug mb-3">{card.headline}</h3>
-          <p className="text-[#9ca3af] text-sm leading-relaxed">{card.summary}</p>
+          <p className="text-[#9ca3af] text-sm leading-relaxed mb-3">{card.summary}</p>
+
+          {/* Top User Signal pill */}
+          {(() => {
+            const bullPct = card.bull_percent ?? 50
+            const bearPct = card.bear_percent ?? 50
+            let label: string
+            let color: string
+            let bg: string
+            if (bullPct >= 65) {
+              label = '🏆 Top analysts leaning bullish'
+              color = '#00C805'
+              bg = 'rgba(0,200,5,0.10)'
+            } else if (bearPct >= 55) {
+              label = '📉 High-accuracy users bearish'
+              color = '#FF3B30'
+              bg = 'rgba(255,59,48,0.10)'
+            } else {
+              label = '⚡ Mixed signals from top traders'
+              color = '#C9A84C'
+              bg = 'rgba(201,168,76,0.10)'
+            }
+            return (
+              <div
+                className="inline-block rounded-full px-3 py-1 mb-1"
+                style={{ background: bg, color, fontSize: '10px', fontWeight: 700, border: `1px solid ${color}30` }}
+              >
+                {label}
+              </div>
+            )
+          })()}
         </div>
 
         {/* Momentum meter */}
         <div className="px-5 py-4">
           <MomentumMeter bull={card.bull_percent} bear={card.bear_percent} />
+          {/* Live sentiment tag */}
+          <div className="text-center text-[#6b7280] mt-1" style={{ fontSize: '10px' }}>
+            Live sentiment from MarketJump users
+          </div>
         </div>
       </div>
 
@@ -236,11 +270,10 @@ export default function JumpCard({
       <div className="flex justify-center mt-4">
         <button
           onClick={onJump}
-          className="w-20 h-20 rounded-full transition-all active:scale-90 shadow-xl flex flex-col items-center justify-center gap-0.5"
+          className="w-20 h-20 rounded-full transition-all active:scale-90 flex flex-col items-center justify-center gap-0.5 animate-jump-pulse"
           style={{
             background: 'linear-gradient(135deg, #1B3066 0%, #2a4a8a 50%, #C9A84C 100%)',
             color: '#fff',
-            boxShadow: '0 0 24px rgba(201,168,76,0.35), 0 4px 20px rgba(0,0,0,0.5)',
           }}
         >
           <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">

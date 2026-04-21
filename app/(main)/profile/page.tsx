@@ -29,6 +29,13 @@ interface Prediction {
   resolved: boolean
 }
 
+interface ResolvedCall {
+  ticker: string
+  prediction: string
+  result: string
+  created_at: string
+}
+
 export default function ProfilePage() {
   const router = useRouter()
   const supabase = createClient()
@@ -36,6 +43,8 @@ export default function ProfilePage() {
   const [predictions, setPredictions] = useState<Prediction[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active')
+  const [bestCall, setBestCall] = useState<ResolvedCall | null>(null)
+  const [worstCall, setWorstCall] = useState<ResolvedCall | null>(null)
 
   useEffect(() => {
     loadProfile()
@@ -79,6 +88,22 @@ export default function ProfilePage() {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
     if (preds) setPredictions(preds)
+
+    // Fetch best/worst calls separately for accuracy
+    const { data: resolvedPreds } = await supabase
+      .from('predictions')
+      .select('ticker, prediction, result, created_at')
+      .eq('user_id', user.id)
+      .in('result', ['correct', 'incorrect'])
+      .order('created_at', { ascending: false })
+      .limit(20)
+    if (resolvedPreds) {
+      const best = resolvedPreds.find((p: { result: string }) => p.result === 'correct')
+      const worst = resolvedPreds.find((p: { result: string }) => p.result === 'incorrect')
+      setBestCall(best ?? null)
+      setWorstCall(worst ?? null)
+    }
+
     setLoading(false)
   }
 
@@ -99,11 +124,6 @@ export default function ProfilePage() {
 
   const activePredictions = predictions.filter(p => !p.resolved)
   const history = predictions.filter(p => p.resolved)
-
-  // Best and worst call
-  const resolved = predictions.filter(p => p.resolved && p.result !== 'pending')
-  const bestCall = resolved.find(p => p.result === 'correct')
-  const worstCall = resolved.find(p => p.result === 'incorrect')
 
   const levelProgress = {
     rookie: { next: 'Analyst', threshold: 1500, color: '#6b7280' },
@@ -191,7 +211,9 @@ export default function ProfilePage() {
                 <div className="bg-[#00C805]/10 border border-[#00C805]/20 rounded-xl p-3">
                   <div className="text-[#00C805] text-[10px] font-bold uppercase tracking-wider mb-1">Best Call</div>
                   <div className="text-white font-black">{bestCall.ticker}</div>
-                  <div className="text-[#00C805] text-xs">🐂 Bullish · Correct</div>
+                  <div className="text-[#00C805] text-xs">
+                    {bestCall.prediction === 'bullish' ? '🐂 Bullish' : '🐻 Bearish'} · Correct
+                  </div>
                 </div>
               )}
               {worstCall && (
