@@ -99,11 +99,32 @@ export default function BrandPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
 
-    let { data: p } = await supabase
+    // First try with brand columns (available after running supabase-schema-brand.sql)
+    let { data: p, error: fetchErr } = await supabase
       .from('profiles')
       .select('id, username, brand_name, brand_tagline, brand_avatar_url, brand_logo_url, level, market_score, accuracy, total_predictions, correct_predictions, followers, following, agreed_count, disagreed_count')
       .eq('id', user.id)
       .single()
+
+    // If brand columns don't exist yet, fall back to base columns
+    if (fetchErr || !p) {
+      const { data: pBase } = await supabase
+        .from('profiles')
+        .select('id, username, level, market_score, accuracy, total_predictions, correct_predictions, followers, following')
+        .eq('id', user.id)
+        .single()
+      if (pBase) {
+        p = {
+          ...pBase,
+          brand_name: null,
+          brand_tagline: null,
+          brand_avatar_url: null,
+          brand_logo_url: null,
+          agreed_count: 0,
+          disagreed_count: 0,
+        }
+      }
+    }
 
     if (!p) {
       const username = user.email?.split('@')[0] ?? 'user'
@@ -119,14 +140,22 @@ export default function BrandPage() {
           correct_predictions: 0,
           followers: 0,
           following: 0,
-          agreed_count: 0,
-          disagreed_count: 0,
           interests: [],
           onboarding_complete: false,
         })
         .select()
         .single()
-      p = created
+      if (created) {
+        p = {
+          ...created,
+          brand_name: null,
+          brand_tagline: null,
+          brand_avatar_url: null,
+          brand_logo_url: null,
+          agreed_count: 0,
+          disagreed_count: 0,
+        }
+      }
     }
 
     if (p) {
@@ -153,14 +182,16 @@ export default function BrandPage() {
       .limit(30)
     if (postsData) setPosts(postsData as Post[])
 
-    // Existing vote
-    const { data: voteRow } = await supabase
-      .from('brand_votes')
-      .select('vote')
-      .eq('voter_id', user.id)
-      .eq('target_id', user.id)
-      .single()
-    if (voteRow) setMyVote(voteRow.vote as 'agreed' | 'disagreed')
+    // Existing vote (brand_votes table only exists after running supabase-schema-brand.sql)
+    try {
+      const { data: voteRow } = await supabase
+        .from('brand_votes')
+        .select('vote')
+        .eq('voter_id', user.id)
+        .eq('target_id', user.id)
+        .single()
+      if (voteRow) setMyVote(voteRow.vote as 'agreed' | 'disagreed')
+    } catch { /* table not yet created */ }
 
     setLoading(false)
   }
