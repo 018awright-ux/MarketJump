@@ -22,6 +22,7 @@ interface BrandProfile {
   following: number
   agreed_count: number
   disagreed_count: number
+  interests?: string[]
 }
 
 interface Prediction {
@@ -84,11 +85,14 @@ export default function BrandPage() {
   const [editTagline, setEditTagline] = useState('')
   const [editAvatarUrl, setEditAvatarUrl] = useState('')
   const [editLogoUrl, setEditLogoUrl] = useState('')
+  const [editInterests, setEditInterests] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
+
+  const INTERESTS = ['Tech', 'Energy', 'Crypto', 'Healthcare', 'Finance', 'Macro', 'Consumer', 'Real Estate', 'Commodities', 'Options', 'ETFs', 'AI & Robotics', 'Biotech', 'Semiconductors', 'EV & Clean Energy']
 
   useEffect(() => {
     loadBrand()
@@ -164,6 +168,7 @@ export default function BrandPage() {
       setEditTagline(p.brand_tagline ?? '')
       setEditAvatarUrl(p.brand_avatar_url ?? '')
       setEditLogoUrl(p.brand_logo_url ?? '')
+      setEditInterests((p as BrandProfile).interests ?? [])
     }
 
     const { data: preds } = await supabase
@@ -240,11 +245,12 @@ export default function BrandPage() {
   async function handleSave() {
     if (!profile) return
     setSaving(true)
-    const updates: Record<string, string | null> = {
+    const updates: Record<string, string | string[] | null> = {
       brand_name: editBrandName.trim() || null,
       brand_tagline: editTagline.trim() || null,
       brand_avatar_url: editAvatarUrl.trim() || null,
       brand_logo_url: editLogoUrl.trim() || null,
+      interests: editInterests,
     }
     const { data } = await supabase
       .from('profiles')
@@ -335,18 +341,18 @@ export default function BrandPage() {
           </div>
 
           {/* B. Brand Stats grid */}
-          <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="grid grid-cols-3 gap-2 mb-3">
             {[
               { label: 'Brand Score', value: profile.market_score.toLocaleString(), color: '#C9A84C' },
               { label: 'Accuracy', value: `${profile.accuracy?.toFixed(1)}%`, color: '#00C805' },
               { label: 'Total Moves', value: profile.total_predictions, color: 'white' },
-              { label: 'Audience', value: profile.followers, color: 'white' },
               { label: 'Agreed By', value: profile.agreed_count, sub: '⚡ Weighted', color: '#C9A84C' },
               {
                 label: 'Best Move',
                 value: bestMove ? `${bestMove.ticker} ${bestMove.prediction === 'bullish' ? '▲' : '▼'} ✓` : '—',
                 color: bestMove ? '#00C805' : '#6b7280',
               },
+              { label: 'Correct', value: `${profile.correct_predictions}/${profile.total_predictions}`, color: '#00C805' },
             ].map((stat, i) => (
               <div
                 key={i}
@@ -357,6 +363,25 @@ export default function BrandPage() {
                 <div className="text-[#6b7280] text-[9px] uppercase tracking-wider mt-0.5">{stat.label}</div>
               </div>
             ))}
+          </div>
+
+          {/* Tappable Audience + Following row */}
+          <div className="flex gap-4 mt-2 mb-1">
+            <button
+              onClick={() => router.push(`/profile/${profile.id}/followers`)}
+              className="text-center"
+            >
+              <div className="text-white font-black text-sm">{profile.followers}</div>
+              <div className="text-[#6b7280] text-[10px] uppercase tracking-wider">Audience</div>
+            </button>
+            <div className="w-px bg-[#2a2a3a]" />
+            <button
+              onClick={() => router.push(`/profile/${profile.id}/following`)}
+              className="text-center"
+            >
+              <div className="text-white font-black text-sm">{profile.following}</div>
+              <div className="text-[#6b7280] text-[10px] uppercase tracking-wider">Following</div>
+            </button>
           </div>
         </div>
 
@@ -561,93 +586,126 @@ export default function BrandPage() {
       {editOpen && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.7)' }}>
           <div
-            className="rounded-t-3xl border-t border-[#C9A84C]/20 backdrop-blur-md p-6 pb-10"
+            className="rounded-t-3xl border-t border-[#C9A84C]/20 backdrop-blur-md overflow-y-auto max-h-[85vh]"
             style={{ background: 'rgba(8,12,20,0.97)' }}
           >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-white font-black text-lg">Edit Brand</h2>
-              <button
-                onClick={() => setEditOpen(false)}
-                className="text-[#6b7280] hover:text-white transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-[#9ca3af] text-xs uppercase tracking-wider mb-1.5 block">Brand Name</label>
-                <input
-                  className="w-full bg-[#12121a] border border-[#C9A84C]/20 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-[#C9A84C]/60 transition-colors"
-                  value={editBrandName}
-                  onChange={e => setEditBrandName(e.target.value)}
-                  placeholder="e.g. TheOilHawk"
-                  maxLength={40}
-                />
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-white font-black text-lg">Edit Brand</h2>
+                <button
+                  onClick={() => setEditOpen(false)}
+                  className="text-[#6b7280] hover:text-white transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
 
-              <div>
-                <label className="text-[#9ca3af] text-xs uppercase tracking-wider mb-1.5 block">Brand Tagline</label>
-                <input
-                  className="w-full bg-[#12121a] border border-[#C9A84C]/20 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-[#C9A84C]/60 transition-colors"
-                  value={editTagline}
-                  onChange={e => setEditTagline(e.target.value.slice(0, 80))}
-                  placeholder="e.g. Oil & energy plays since 2019"
-                  maxLength={80}
-                />
-                <div className="text-right text-[#6b7280] text-[10px] mt-0.5">{editTagline.length}/80</div>
-              </div>
-
-              <div>
-                <label className="text-[#9ca3af] text-xs uppercase tracking-wider mb-1.5 block">Brand Avatar URL</label>
-                <div className="flex gap-2">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[#9ca3af] text-xs uppercase tracking-wider mb-1.5 block">Brand Name</label>
                   <input
-                    className="flex-1 bg-[#12121a] border border-[#C9A84C]/20 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-[#C9A84C]/60 transition-colors"
-                    value={editAvatarUrl}
-                    onChange={e => setEditAvatarUrl(e.target.value)}
-                    placeholder="Paste URL or upload"
+                    className="w-full bg-[#12121a] border border-[#C9A84C]/20 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-[#C9A84C]/60 transition-colors"
+                    value={editBrandName}
+                    onChange={e => setEditBrandName(e.target.value)}
+                    placeholder="e.g. TheOilHawk"
+                    maxLength={40}
                   />
+                </div>
+
+                <div>
+                  <label className="text-[#9ca3af] text-xs uppercase tracking-wider mb-1.5 block">Brand Tagline</label>
+                  <input
+                    className="w-full bg-[#12121a] border border-[#C9A84C]/20 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-[#C9A84C]/60 transition-colors"
+                    value={editTagline}
+                    onChange={e => setEditTagline(e.target.value.slice(0, 80))}
+                    placeholder="e.g. Oil & energy plays since 2019"
+                    maxLength={80}
+                  />
+                  <div className="text-right text-[#6b7280] text-[10px] mt-0.5">{editTagline.length}/80</div>
+                </div>
+
+                <div>
+                  <label className="text-[#9ca3af] text-xs uppercase tracking-wider mb-1.5 block">Brand Avatar URL</label>
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 bg-[#12121a] border border-[#C9A84C]/20 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-[#C9A84C]/60 transition-colors"
+                      value={editAvatarUrl}
+                      onChange={e => setEditAvatarUrl(e.target.value)}
+                      placeholder="Paste URL or upload"
+                    />
+                    <button
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={uploadingAvatar}
+                      className="px-3 py-2 rounded-xl text-xs font-bold border border-[#C9A84C]/30 text-[#C9A84C] hover:bg-[#C9A84C]/10 transition-colors disabled:opacity-50"
+                    >
+                      {uploadingAvatar ? '...' : 'Upload'}
+                    </button>
+                    <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[#9ca3af] text-xs uppercase tracking-wider mb-1.5 block">Brand Logo URL</label>
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 bg-[#12121a] border border-[#C9A84C]/20 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-[#C9A84C]/60 transition-colors"
+                      value={editLogoUrl}
+                      onChange={e => setEditLogoUrl(e.target.value)}
+                      placeholder="Paste URL or upload"
+                    />
+                    <button
+                      onClick={() => logoInputRef.current?.click()}
+                      disabled={uploadingLogo}
+                      className="px-3 py-2 rounded-xl text-xs font-bold border border-[#C9A84C]/30 text-[#C9A84C] hover:bg-[#C9A84C]/10 transition-colors disabled:opacity-50"
+                    >
+                      {uploadingLogo ? '...' : 'Upload'}
+                    </button>
+                    <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                  </div>
+                </div>
+
+                {/* Interests */}
+                <div>
+                  <label className="text-[#9ca3af] text-xs uppercase tracking-wider mb-2 block">Interests</label>
+                  <div className="flex flex-wrap gap-2">
+                    {INTERESTS.map(interest => {
+                      const selected = editInterests.includes(interest)
+                      return (
+                        <button
+                          key={interest}
+                          type="button"
+                          onClick={() => setEditInterests(prev =>
+                            prev.includes(interest)
+                              ? prev.filter(i => i !== interest)
+                              : [...prev, interest]
+                          )}
+                          className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                            selected
+                              ? 'border-[#C9A84C] text-[#C9A84C]'
+                              : 'border-[#2a2a3a] text-[#6b7280] bg-[#12121a]'
+                          }`}
+                          style={selected ? { background: 'rgba(201,168,76,0.15)' } : {}}
+                        >
+                          {interest}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="pb-8">
                   <button
-                    onClick={() => avatarInputRef.current?.click()}
-                    disabled={uploadingAvatar}
-                    className="px-3 py-2 rounded-xl text-xs font-bold border border-[#C9A84C]/30 text-[#C9A84C] hover:bg-[#C9A84C]/10 transition-colors disabled:opacity-50"
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="w-full py-3.5 rounded-xl font-black text-sm text-black transition-opacity disabled:opacity-60"
+                    style={{ background: 'linear-gradient(135deg, #C9A84C, #e8c96d)' }}
                   >
-                    {uploadingAvatar ? '...' : 'Upload'}
+                    {saving ? 'Saving...' : 'Save Brand'}
                   </button>
-                  <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
                 </div>
               </div>
-
-              <div>
-                <label className="text-[#9ca3af] text-xs uppercase tracking-wider mb-1.5 block">Brand Logo URL</label>
-                <div className="flex gap-2">
-                  <input
-                    className="flex-1 bg-[#12121a] border border-[#C9A84C]/20 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-[#C9A84C]/60 transition-colors"
-                    value={editLogoUrl}
-                    onChange={e => setEditLogoUrl(e.target.value)}
-                    placeholder="Paste URL or upload"
-                  />
-                  <button
-                    onClick={() => logoInputRef.current?.click()}
-                    disabled={uploadingLogo}
-                    className="px-3 py-2 rounded-xl text-xs font-bold border border-[#C9A84C]/30 text-[#C9A84C] hover:bg-[#C9A84C]/10 transition-colors disabled:opacity-50"
-                  >
-                    {uploadingLogo ? '...' : 'Upload'}
-                  </button>
-                  <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-                </div>
-              </div>
-
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="w-full py-3.5 rounded-xl font-black text-sm text-black transition-opacity disabled:opacity-60"
-                style={{ background: 'linear-gradient(135deg, #C9A84C, #e8c96d)' }}
-              >
-                {saving ? 'Saving...' : 'Save Brand'}
-              </button>
             </div>
           </div>
         </div>
