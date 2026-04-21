@@ -1,0 +1,155 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import type { JumpCard as JumpCardType, UserLevel } from '@/lib/types'
+import MomentumMeter from './MomentumMeter'
+import SourceBadge from './SourceBadge'
+
+interface ExpandedCardProps {
+  card: JumpCardType
+  level: UserLevel
+  onClose: () => void
+  onBullish: () => void
+  onBearish: () => void
+  onTrack: () => void
+  onJump: () => void
+  tracked?: boolean
+}
+
+export default function ExpandedCard({
+  card, level, onClose, onBullish, onBearish, onTrack, onJump, tracked = false
+}: ExpandedCardProps) {
+  const [aiText, setAiText] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const isPositive = (card.change_percent ?? 0) >= 0
+  const hasPrice = card.price != null && card.card_type !== 'macro'
+
+  useEffect(() => {
+    fetchAI()
+  }, [card.id])
+
+  async function fetchAI() {
+    setAiLoading(true)
+    setAiText('')
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cardType: card.card_type,
+          ticker: card.ticker,
+          headline: card.headline,
+          summary: card.summary,
+          changePercent: card.change_percent,
+          source: card.source,
+          level,
+        }),
+      })
+      const data = await res.json()
+      setAiText(data.analysis || 'Analysis unavailable.')
+    } catch {
+      setAiText('Analysis unavailable.')
+    }
+    setAiLoading(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-[#0a0a0f]/95 backdrop-blur-sm flex flex-col animate-fade-in max-w-lg mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between p-5 border-b border-[#1e2d4a]">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xl font-black text-white">{card.ticker}</span>
+            {hasPrice && (
+              <span className={`text-sm font-bold ${isPositive ? 'text-[#00C805]' : 'text-[#FF3B30]'}`}>
+                ${card.price?.toFixed(2)} ({isPositive ? '+' : ''}{card.change_percent?.toFixed(2)}%)
+              </span>
+            )}
+          </div>
+          <SourceBadge source={card.source} sourceName={card.source_name} />
+        </div>
+        <button onClick={onClose} className="text-[#6b7280] hover:text-white transition-colors p-2">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Headline + summary */}
+        <div className="p-5 border-b border-[#1e2d4a]">
+          <h2 className="text-white font-bold text-base leading-snug mb-2">{card.headline}</h2>
+          <p className="text-[#9ca3af] text-sm leading-relaxed">{card.summary}</p>
+        </div>
+
+        {/* Momentum */}
+        <div className="p-5 border-b border-[#1e2d4a]">
+          <MomentumMeter bull={card.bull_percent} bear={card.bear_percent} />
+        </div>
+
+        {/* AI Analysis */}
+        <div className="p-5 border-b border-[#1e2d4a]">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[#00C805] font-bold text-sm">⚡ AI Analysis</span>
+            <span className="text-[10px] text-[#6b7280] bg-[#111827] px-2 py-0.5 rounded-full uppercase tracking-wider">
+              {level}
+            </span>
+          </div>
+          {aiLoading ? (
+            <div className="space-y-2">
+              <div className="h-3 bg-[#111827] rounded animate-pulse w-full" />
+              <div className="h-3 bg-[#111827] rounded animate-pulse w-4/5" />
+              <div className="h-3 bg-[#111827] rounded animate-pulse w-5/6" />
+              <div className="h-3 bg-[#111827] rounded animate-pulse w-3/4" />
+            </div>
+          ) : (
+            <p className="text-[#d1d5db] text-sm leading-relaxed whitespace-pre-wrap">{aiText}</p>
+          )}
+        </div>
+
+        {/* Disclaimer */}
+        <div className="px-5 py-3">
+          <p className="text-[#4b5563] text-xs italic">
+            Public information and opinion only. Not financial advice.
+          </p>
+        </div>
+      </div>
+
+      {/* Action buttons */}
+      <div className="p-5 border-t border-[#1e2d4a] space-y-3">
+        <div className="grid grid-cols-3 gap-3">
+          <button
+            onClick={onBullish}
+            className="flex flex-col items-center gap-1.5 bg-[#00C805]/10 border border-[#00C805]/30 rounded-2xl py-3 hover:bg-[#00C805]/20 transition-colors"
+          >
+            <span className="text-xl">🐂</span>
+            <span className="text-[#00C805] text-xs font-bold">Bullish</span>
+          </button>
+          <button
+            onClick={onBearish}
+            className="flex flex-col items-center gap-1.5 bg-[#FF3B30]/10 border border-[#FF3B30]/30 rounded-2xl py-3 hover:bg-[#FF3B30]/20 transition-colors"
+          >
+            <span className="text-xl">🐻</span>
+            <span className="text-[#FF3B30] text-xs font-bold">Bearish</span>
+          </button>
+          <button
+            onClick={onTrack}
+            className={`flex flex-col items-center gap-1.5 border rounded-2xl py-3 transition-colors ${
+              tracked ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-[#111827] border-[#1e2d4a]'
+            }`}
+          >
+            <span className="text-xl">{tracked ? '⭐' : '☆'}</span>
+            <span className={`text-xs font-bold ${tracked ? 'text-yellow-400' : 'text-[#6b7280]'}`}>Track</span>
+          </button>
+        </div>
+        <button
+          onClick={onJump}
+          className="w-full bg-[#00C805] text-black font-black py-4 rounded-2xl text-lg tracking-wide hover:bg-[#00e006] transition-colors"
+        >
+          JUMP ⚡
+        </button>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+:root {
+  --background: #080c14;
+  --foreground: #f0f0f0;
+  --bull: #00C805;
+  --bear: #FF3B30;
+  --surface: #0d1422;
+  --surface-2: #111827;
+  --border: #1e2d4a;
+  --muted: #6b7280;
+  --navy: #1B3066;
+  --navy-light: #4A6FA5;
+  --gold: #C9A84C;
+  --gold-light: #F0D080;
+  --accent: #C9A84C;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-bull: var(--bull);
+  --color-bear: var(--bear);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --font-sans: var(--font-geist-sans, system-ui, sans-serif);
+  --font-mono: var(--font-geist-mono, monospace);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  overscroll-behavior: none;
+  height: 100%;
+}
+
+/* Swipe card animations */
+@keyframes swipe-right {
+  to { transform: translateX(120%) rotate(20deg); opacity: 0; }
+}
+@keyframes swipe-left {
+  to { transform: translateX(-120%) rotate(-20deg); opacity: 0; }
+}
+@keyframes slide-up {
+  from { transform: translateY(40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pulse-bull {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 200, 5, 0.4); }
+  50% { box-shadow: 0 0 0 12px rgba(0, 200, 5, 0); }
+}
+@keyframes pulse-bear {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.4); }
+  50% { box-shadow: 0 0 0 12px rgba(255, 59, 48, 0); }
+}
+
+.animate-swipe-right { animation: swipe-right 0.4s ease-out forwards; }
+.animate-swipe-left { animation: swipe-left 0.4s ease-out forwards; }
+.animate-slide-up { animation: slide-up 0.3s ease-out; }
+.animate-fade-in { animation: fade-in 0.3s ease-out; }
+.animate-pulse-bull { animation: pulse-bull 0.6s ease-out; }
+.animate-pulse-bear { animation: pulse-bear 0.6s ease-out; }
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Mobile safe areas */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-top { padding-top: env(safe-area-inset-top, 0px); }
+
+/* Scrolling ticker tape */
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-33.333%); }
+}
+
+/* Candlestick pulse */
+@keyframes candle-pulse {
+  0%, 100% { opacity: 0.06; }
+  50% { opacity: 0.12; }
+}
