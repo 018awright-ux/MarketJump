@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { cacheLife } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
 const FINNHUB_BASE = 'https://finnhub.io/api/v1'
@@ -17,29 +18,54 @@ const INTEREST_KEYWORDS: Record<string, string[]> = {
   'Index Funds': ['s&p 500', 'spy', 'qqq', 'dow jones', 'nasdaq', 'index fund', 'etf', 'iwm', 'vti', 'russell'],
 }
 
-async function getCompanyNews(ticker: string, from: string, to: string) {
+// Same 10 tickers as /api/news — shares the 'use cache' function-level cache
+// so no duplicate Finnhub calls when both routes are fetched on the same page load
+const MARKET_TICKERS = ['AAPL', 'NVDA', 'TSLA', 'AMZN', 'META', 'MSFT', 'AMD', 'JPM', 'SPY', 'GOOGL']
+
+type NewsArticle = {
+  headline: string; summary: string; source: string
+  url: string; datetime: number; ticker?: string
+}
+
+// Cached per-ticker — same function signature as /api/news/route.ts fetchTickerNews
+// Next.js 'use cache' keys by (function identity + args), so these are separate caches
+// but both benefit from the same 300s revalidation and serverless persistence
+async function fetchTickerNews(ticker: string): Promise<NewsArticle[]> {
+  'use cache'
+  cacheLife({ revalidate: 300, stale: 300, expire: 7200 })
+
+  const to = new Date().toISOString().split('T')[0]
+  const from = new Date(Date.now() - 7 * 86400_000).toISOString().split('T')[0]
+
   try {
     const res = await fetch(
-      `${FINNHUB_BASE}/company-news?symbol=${ticker}&from=${from}&to=${to}&token=${API_KEY}`,
-      { next: { revalidate: 300 } }
+      `${FINNHUB_BASE}/company-news?symbol=${ticker}&from=${from}&to=${to}&token=${API_KEY}`
     )
     if (!res.ok) return []
     const data = await res.json()
-    return Array.isArray(data) ? data : []
+    if (!Array.isArray(data)) return []
+    return data.slice(0, 3).map((a: NewsArticle) => ({ ...a, ticker }))
   } catch {
     return []
   }
 }
 
-async function getGeneralNews() {
+// Cached per-watchlist-ticker — for user-specific watchlist news
+async function fetchWatchlistNews(ticker: string): Promise<NewsArticle[]> {
+  'use cache'
+  cacheLife({ revalidate: 300, stale: 300, expire: 7200 })
+
+  const to = new Date().toISOString().split('T')[0]
+  const from = new Date(Date.now() - 7 * 86400_000).toISOString().split('T')[0]
+
   try {
     const res = await fetch(
-      `${FINNHUB_BASE}/news?category=general&token=${API_KEY}`,
-      { next: { revalidate: 300 } }
+      `${FINNHUB_BASE}/company-news?symbol=${ticker}&from=${from}&to=${to}&token=${API_KEY}`
     )
     if (!res.ok) return []
     const data = await res.json()
-    return Array.isArray(data) ? data : []
+    if (!Array.isArray(data)) return []
+    return data.slice(0, 3).map((a: NewsArticle) => ({ ...a, ticker }))
   } catch {
     return []
   }
@@ -59,54 +85,55 @@ export async function GET() {
   const interests: string[] = profileRes.data?.interests ?? []
   const watchlistTickers: string[] = (watchlistRes.data ?? []).map((w: { ticker: string }) => w.ticker)
 
-  // Date range for company news (last 7 days)
-  const today = new Date().toISOString().split('T')[0]
-  const weekAgo = new Date(Date.now() - 7 * 86400_000).toISOString().split('T')[0]
-
-  // Fetch in parallel — Next.js deduplicates identical fetch URLs
   const tickersToFetch = watchlistTickers.slice(0, 5)
-  const [companyResults, generalNews, cardsRes] = await Promise.all([
-    Promise.allSettled(
-      tickersToFetch.map(async ticker => {
-        const news = await getCompanyNews(ticker, weekAgo, today)
-        return { ticker, news: news.slice(0, 3) }
-      })
-    ),
-    getGeneralNews(),
+
+  // Fetch in parallel — all calls use 'use cache' so results are shared across instances
+  const [watchlistResults, marketResults, cardsRes] = await Promise.all([
+    Promise.allSettled(tickersToFetch.map(fetchWatchlistNews)),
+    Promise.allSettled(MARKET_TICKERS.map(fetchTickerNews)),
     supabase.from('jump_cards').select('*').order('created_at', { ascending: false }).limit(20),
   ])
 
-  // Flatten company news
-  const watchlistNews: Array<{
-    ticker: string; headline: string; summary: string
-    source: string; url: string; datetime: number
-  }> = []
-
-  for (const result of companyResults) {
+  // Flatten watchlist news
+  const seen = new Set<string>()
+  const watchlistNews: NewsArticle[] = []
+  for (const result of watchlistResults) {
     if (result.status === 'fulfilled') {
-      const { ticker, news } = result.value
-      for (const a of news) {
-        if (a.headline && a.url) {
-          watchlistNews.push({
-            ticker, headline: a.headline, summary: a.summary ?? '',
-            source: a.source, url: a.url, datetime: a.datetime,
-          })
+      for (const a of result.value) {
+        if (a.headline && a.url && !seen.has(a.headline)) {
+          seen.add(a.headline)
+          watchlistNews.push(a)
         }
       }
     }
   }
   watchlistNews.sort((a, b) => b.datetime - a.datetime)
 
-  // Filter general news by interest keywords
+  // Flatten market news
+  const marketSeen = new Set<string>()
+  const broadNews: NewsArticle[] = []
+  for (const result of marketResults) {
+    if (result.status === 'fulfilled') {
+      for (const a of result.value) {
+        if (a.headline && a.url && !marketSeen.has(a.headline)) {
+          marketSeen.add(a.headline)
+          broadNews.push(a)
+        }
+      }
+    }
+  }
+  broadNews.sort((a, b) => b.datetime - a.datetime)
+
+  // Filter by interest keywords (or show all if no interests)
   const keywords = interests.flatMap(i => INTEREST_KEYWORDS[i] ?? [])
   const filteredGeneral = keywords.length > 0
-    ? generalNews
-        .filter((a: { headline: string; summary: string }) => {
+    ? broadNews
+        .filter(a => {
           const text = ((a.headline ?? '') + ' ' + (a.summary ?? '')).toLowerCase()
           return keywords.some(k => text.includes(k))
         })
         .slice(0, 15)
-    : generalNews.slice(0, 15)
+    : broadNews.slice(0, 15)
 
   return NextResponse.json({
     watchlistNews: watchlistNews.slice(0, 15),
