@@ -71,7 +71,7 @@ function createInitialPoints(): number[] {
       Math.sin(i * 1.4 * 0.9 + 1) * 0.09 +
       Math.cos(i * 1.4 * 1.7 + 2) * 0.06 +
       Math.sin(i * 1.4 * 3.1 + 0.5) * 0.04 +
-      (Math.random() - 0.5) * 0.05
+      Math.sin(i * 73.1 + 17.3) * 0.025
     y = Math.max(0.08, Math.min(0.92, y + noise))
     points.push(y)
   }
@@ -130,7 +130,7 @@ export default function MarketBackground() {
           Math.sin(f * 1.4 * 0.11 + 1) * 0.07 +
           Math.cos(f * 1.4 * 0.19 + 2) * 0.05 +
           Math.sin(f * 1.4 * 0.37 + 3) * 0.03 +
-          (Math.random() - 0.5) * 0.055
+          Math.sin(f * 97.3 + 31.7) * 0.0275
         const next = Math.max(0.08, Math.min(0.92, last + noise))
         pointsRef.current = [...pointsRef.current.slice(1), next]
       }
