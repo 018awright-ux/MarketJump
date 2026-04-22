@@ -139,8 +139,8 @@ export default function ExpandedCard({
         </div>
       </div>
 
-      {/* Action buttons */}
-      <div className="p-5 border-t border-[#1e2d4a] space-y-3">
+      {/* Action buttons — pb-24 clears the fixed bottom nav */}
+      <div className="px-5 pt-5 pb-24 border-t border-[#1e2d4a] space-y-3">
         <div className="grid grid-cols-3 gap-3">
           <button
             onClick={onBullish}
