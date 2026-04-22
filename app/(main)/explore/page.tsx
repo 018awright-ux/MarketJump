@@ -16,13 +16,13 @@ interface Quote {
 }
 
 interface NewsItem {
-  id: number
+  id?: number
+  ticker?: string
   headline: string
-  summary: string
+  summary?: string
   source: string
   url: string
   datetime: number
-  related?: string
 }
 
 interface SectorItem {
@@ -69,44 +69,70 @@ export default function ExplorePage() {
   const [cardIndex, setCardIndex] = useState(0)
   const [brandResults, setBrandResults] = useState<BrandResult[]>([])
   const [topBrands, setTopBrands] = useState<BrandResult[]>([])
-  const [marketNews, setMarketNews] = useState<NewsItem[]>([])
   const [sectors, setSectors] = useState<SectorItem[]>([])
-  const [loadingNews, setLoadingNews] = useState(true)
+
+  // Personalized data
+  const [watchlistTickers, setWatchlistTickers] = useState<string[]>([])
+  const [interests, setInterests] = useState<string[]>([])
+  const [watchlistNews, setWatchlistNews] = useState<NewsItem[]>([])
+  const [generalNews, setGeneralNews] = useState<NewsItem[]>([])
+  const [interestCards, setInterestCards] = useState<JumpCard[]>([])
+  const [loadingPersonalized, setLoadingPersonalized] = useState(true)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Load top brands, market news, and sector data on mount
   useEffect(() => {
     const supabase = createClient()
 
-    async function loadTopBrands() {
-      const { data } = await supabase
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser()
+      setIsLoggedIn(!!user)
+
+      // Load top brands
+      supabase
         .from('profiles')
         .select('id, username, brand_name, level, market_score, accuracy, total_predictions')
         .order('market_score', { ascending: false })
         .limit(6)
-      setTopBrands(data ?? [])
+        .then(({ data }) => setTopBrands(data ?? []))
+
+      // Load sector data
+      fetch('/api/sectors')
+        .then(r => r.json())
+        .then(d => { if (d.sectors?.length > 0) setSectors(d.sectors) })
+        .catch(() => {})
+
+      if (user) {
+        // Load personalized feed
+        fetch('/api/news/personalized')
+          .then(r => r.json())
+          .then(d => {
+            setWatchlistNews(d.watchlistNews ?? [])
+            setGeneralNews(d.generalNews ?? [])
+            setInterestCards(d.cards ?? [])
+            setInterests(d.interests ?? [])
+            setWatchlistTickers(d.watchlistTickers ?? [])
+          })
+          .catch(() => {
+            // Fallback: load general news
+            fetch('/api/news')
+              .then(r => r.json())
+              .then(d => setGeneralNews(d.news ?? []))
+              .catch(() => {})
+          })
+          .finally(() => setLoadingPersonalized(false))
+      } else {
+        // Not logged in — show general news
+        fetch('/api/news')
+          .then(r => r.json())
+          .then(d => setGeneralNews(d.news ?? []))
+          .catch(() => {})
+          .finally(() => setLoadingPersonalized(false))
+      }
     }
 
-    async function loadNews() {
-      try {
-        const res = await fetch('/api/news')
-        const data = await res.json()
-        setMarketNews(data.news ?? [])
-      } catch { /* keep empty */ }
-      setLoadingNews(false)
-    }
-
-    async function loadSectors() {
-      try {
-        const res = await fetch('/api/sectors')
-        const data = await res.json()
-        if (data.sectors?.length > 0) setSectors(data.sectors)
-      } catch { /* keep empty */ }
-    }
-
-    loadTopBrands()
-    loadNews()
-    loadSectors()
+    init()
   }, [])
 
   // Clear results when search mode changes
@@ -140,7 +166,6 @@ export default function ExplorePage() {
         setSearching(false)
         return
       }
-      // stocks mode
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
         const data = await res.json()
@@ -179,13 +204,36 @@ export default function ExplorePage() {
     setLoadingStock(false)
   }
 
-  function jumpNext() {
-    if (!stockData) return
-    setCardIndex(i => (i + 1) % Math.max(stockData.cards.length, 1))
-  }
-
   const currentCard = stockData?.cards[cardIndex]
   const isUp = (stockData?.quote?.dp ?? 0) >= 0
+
+  function NewsCard({ item }: { item: NewsItem }) {
+    return (
+      <a
+        href={item.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block rounded-xl border border-[#1e2d4a] p-3 hover:border-[#C9A84C]/30 transition-colors"
+        style={{ background: 'rgba(13,20,34,0.8)' }}
+      >
+        {item.ticker && (
+          <span className="text-[10px] font-bold text-[#C9A84C] bg-[#C9A84C]/10 px-2 py-0.5 rounded-full mr-2">
+            {item.ticker}
+          </span>
+        )}
+        <p className="text-white text-xs font-medium leading-snug mb-1 mt-1">{item.headline}</p>
+        <div className="flex items-center gap-2">
+          <span className="text-[#C9A84C] text-[10px]">{item.source}</span>
+          {item.datetime && (
+            <>
+              <span className="text-[#1e2d4a]">·</span>
+              <span className="text-[#6b7280] text-[10px]">{timeAgo(item.datetime)}</span>
+            </>
+          )}
+        </div>
+      </a>
+    )
+  }
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -214,21 +262,13 @@ export default function ExplorePage() {
         <div className="flex border-b border-[#2a2a3a] mb-3 mt-2">
           <button
             onClick={() => setSearchMode('stocks')}
-            className={`flex-1 py-2 text-xs font-bold transition-colors ${
-              searchMode === 'stocks'
-                ? 'text-[#C9A84C] border-b-2 border-[#C9A84C]'
-                : 'text-[#6b7280]'
-            }`}
+            className={`flex-1 py-2 text-xs font-bold transition-colors ${searchMode === 'stocks' ? 'text-[#C9A84C] border-b-2 border-[#C9A84C]' : 'text-[#6b7280]'}`}
           >
             Stocks
           </button>
           <button
             onClick={() => setSearchMode('people')}
-            className={`flex-1 py-2 text-xs font-bold transition-colors ${
-              searchMode === 'people'
-                ? 'text-[#C9A84C] border-b-2 border-[#C9A84C]'
-                : 'text-[#6b7280]'
-            }`}
+            className={`flex-1 py-2 text-xs font-bold transition-colors ${searchMode === 'people' ? 'text-[#C9A84C] border-b-2 border-[#C9A84C]' : 'text-[#6b7280]'}`}
           >
             People
           </button>
@@ -273,7 +313,7 @@ export default function ExplorePage() {
 
       <div className="flex-1 overflow-y-auto px-5 pb-4">
 
-        {/* Selected stock panel */}
+        {/* ── STOCK SEARCH RESULT PANEL ─────────────────────────────── */}
         {searchMode === 'stocks' && stockData && (
           <div className="mb-5 animate-slide-up">
             <div className="rounded-2xl border border-[#C9A84C]/25 overflow-hidden" style={{ background: 'rgba(8,12,20,0.88)' }}>
@@ -284,25 +324,20 @@ export default function ExplorePage() {
                 </div>
               ) : (
                 <>
-                  {/* Stock header */}
                   <div className="flex items-center justify-between p-4 border-b border-[#1e2d4a]">
                     <div>
                       <div className="text-2xl font-black text-white">{stockData.ticker}</div>
                       {stockData.quote && (
                         <div className={`text-sm font-bold ${isUp ? 'text-[#00C805]' : 'text-[#FF3B30]'}`}>
-                          ${stockData.quote.c?.toFixed(2)}{' '}
-                          ({isUp ? '+' : ''}{stockData.quote.dp?.toFixed(2)}%)
+                          ${stockData.quote.c?.toFixed(2)} ({isUp ? '+' : ''}{stockData.quote.dp?.toFixed(2)}%)
                         </div>
                       )}
                     </div>
                     {stockData.cards.length > 0 && (
-                      <span className="text-[#6b7280] text-xs font-mono">
-                        {cardIndex + 1}/{stockData.cards.length} topics
-                      </span>
+                      <span className="text-[#6b7280] text-xs font-mono">{cardIndex + 1}/{stockData.cards.length} topics</span>
                     )}
                   </div>
 
-                  {/* Current card preview */}
                   {currentCard && (
                     <div className="p-4 border-b border-[#1e2d4a]">
                       <div className="flex items-center gap-2 mb-2">
@@ -310,16 +345,11 @@ export default function ExplorePage() {
                           currentCard.source === 'reddit' ? 'bg-[#FF4500]/15 text-[#FF4500]' :
                           currentCard.source === 'stocktwits' ? 'bg-[#40A9FF]/15 text-[#40A9FF]' :
                           'bg-[#C9A84C]/15 text-[#C9A84C]'
-                        }`}>
-                          {currentCard.source}
-                        </span>
-                        {currentCard.source_name && (
-                          <span className="text-[#6b7280] text-xs">{currentCard.source_name}</span>
-                        )}
+                        }`}>{currentCard.source}</span>
+                        {currentCard.source_name && <span className="text-[#6b7280] text-xs">{currentCard.source_name}</span>}
                       </div>
                       <p className="text-white text-sm font-semibold leading-snug mb-1">{currentCard.headline}</p>
                       <p className="text-[#9ca3af] text-xs leading-relaxed line-clamp-3">{currentCard.summary}</p>
-
                       <div className="mt-3 flex items-center gap-2">
                         <span className="text-[#00C805] text-xs font-bold">🐂 {currentCard.bull_percent}%</span>
                         <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,59,48,0.3)' }}>
@@ -333,13 +363,9 @@ export default function ExplorePage() {
                   {stockData.cards.length > 1 && (
                     <div className="flex justify-center py-3 border-b border-[#1e2d4a]">
                       <button
-                        onClick={jumpNext}
-                        className="w-14 h-14 rounded-full font-black text-xs tracking-widest transition-all active:scale-90 flex flex-col items-center justify-center gap-0.5 shadow-lg"
-                        style={{
-                          background: 'linear-gradient(135deg, #1B3066 0%, #2a4a8a 50%, #C9A84C 100%)',
-                          color: '#fff',
-                          boxShadow: '0 0 20px rgba(201,168,76,0.3)',
-                        }}
+                        onClick={() => setCardIndex(i => (i + 1) % stockData.cards.length)}
+                        className="w-14 h-14 rounded-full transition-all active:scale-90 flex flex-col items-center justify-center gap-0.5"
+                        style={{ background: 'linear-gradient(135deg, #1B3066 0%, #2a4a8a 50%, #C9A84C 100%)', color: '#fff', boxShadow: '0 0 20px rgba(201,168,76,0.3)' }}
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -349,32 +375,11 @@ export default function ExplorePage() {
                     </div>
                   )}
 
-                  {/* Latest news from Finnhub */}
                   {stockData.news.length > 0 && (
                     <div className="p-4">
                       <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-2">Latest News</div>
                       <div className="space-y-2">
-                        {stockData.news.slice(0, 5).map((n, i) => (
-                          <a
-                            key={n.id ?? i}
-                            href={n.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block rounded-xl p-3 border border-[#1e2d4a] hover:border-[#C9A84C]/30 transition-colors"
-                            style={{ background: 'rgba(30,45,74,0.3)' }}
-                          >
-                            <p className="text-white text-xs font-medium leading-snug mb-1">{n.headline}</p>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[#C9A84C] text-[10px]">{n.source}</span>
-                              {n.datetime && (
-                                <>
-                                  <span className="text-[#1e2d4a]">·</span>
-                                  <span className="text-[#6b7280] text-[10px]">{timeAgo(n.datetime)}</span>
-                                </>
-                              )}
-                            </div>
-                          </a>
-                        ))}
+                        {stockData.news.slice(0, 5).map((n, i) => <NewsCard key={i} item={n} />)}
                       </div>
                     </div>
                   )}
@@ -384,14 +389,39 @@ export default function ExplorePage() {
           </div>
         )}
 
-        {/* Stocks mode: Trending + Sectors + Market News */}
+        {/* ── STOCKS MODE CONTENT ───────────────────────────────────── */}
         {searchMode === 'stocks' && (
           <>
-            {/* Trending tickers */}
+            {/* Watchlist quick chips */}
+            {watchlistTickers.length > 0 && (
+              <div className="mb-5">
+                <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Your Watchlist</div>
+                <div className="flex flex-wrap gap-2">
+                  {watchlistTickers.map(ticker => (
+                    <button
+                      key={ticker}
+                      onClick={() => loadStock(ticker)}
+                      className="px-4 py-2 rounded-xl border text-sm font-bold transition-all active:scale-95"
+                      style={{
+                        background: stockData?.ticker === ticker ? 'rgba(201,168,76,0.15)' : 'rgba(13,20,34,0.8)',
+                        borderColor: stockData?.ticker === ticker ? 'rgba(201,168,76,0.5)' : 'rgba(30,45,74,0.8)',
+                        color: stockData?.ticker === ticker ? '#C9A84C' : '#fff',
+                      }}
+                    >
+                      {ticker}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Trending (shown when no watchlist or always) */}
             <div className="mb-5">
-              <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Trending on MarketJump</div>
+              <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">
+                {watchlistTickers.length > 0 ? 'Trending on MarketJump' : 'Trending'}
+              </div>
               <div className="flex flex-wrap gap-2">
-                {TRENDING.map(ticker => (
+                {TRENDING.filter(t => !watchlistTickers.includes(t)).map(ticker => (
                   <button
                     key={ticker}
                     onClick={() => loadStock(ticker)}
@@ -408,7 +438,46 @@ export default function ExplorePage() {
               </div>
             </div>
 
-            {/* Sector heatmap — real ETF data */}
+            {/* News for your stocks */}
+            {watchlistNews.length > 0 && (
+              <div className="mb-5">
+                <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">
+                  News for Your Stocks
+                </div>
+                <div className="space-y-2">
+                  {watchlistNews.map((item, i) => <NewsCard key={i} item={item} />)}
+                </div>
+              </div>
+            )}
+
+            {/* Interest-matched cards */}
+            {interests.length > 0 && interestCards.length > 0 && (
+              <div className="mb-5">
+                <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">
+                  Based on Your Interests · {interests.slice(0, 3).join(', ')}
+                </div>
+                <div className="space-y-2">
+                  {interestCards.slice(0, 5).map(card => (
+                    <div key={card.id} className="rounded-xl border border-[#1e2d4a] p-3" style={{ background: 'rgba(13,20,34,0.8)' }}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[#C9A84C] text-xs font-black">{card.ticker}</span>
+                        {card.company_name && <span className="text-[#6b7280] text-[10px] truncate">{card.company_name}</span>}
+                      </div>
+                      <p className="text-white text-xs font-medium leading-snug mb-1">{card.headline}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-[#00C805] text-[10px] font-bold">🐂 {card.bull_percent}%</span>
+                        <div className="flex-1 h-0.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,59,48,0.3)' }}>
+                          <div className="h-full bg-[#00C805] rounded-full" style={{ width: `${card.bull_percent}%` }} />
+                        </div>
+                        <span className="text-[#FF3B30] text-[10px] font-bold">{card.bear_percent}% 🐻</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Sector Pulse — real ETF data */}
             {sectors.length > 0 && (
               <div className="mb-5">
                 <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Sector Pulse</div>
@@ -432,10 +501,12 @@ export default function ExplorePage() {
               </div>
             )}
 
-            {/* Market News — real Finnhub general news */}
+            {/* General / filtered market news */}
             <div>
-              <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Market News</div>
-              {loadingNews ? (
+              <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">
+                {interests.length > 0 ? `Market News · ${interests.slice(0, 2).join(' & ')}` : 'Market News'}
+              </div>
+              {loadingPersonalized ? (
                 <div className="space-y-2">
                   {[...Array(4)].map((_, i) => (
                     <div key={i} className="rounded-xl border border-[#1e2d4a] p-3 space-y-2" style={{ background: 'rgba(13,20,34,0.8)' }}>
@@ -445,29 +516,9 @@ export default function ExplorePage() {
                     </div>
                   ))}
                 </div>
-              ) : marketNews.length > 0 ? (
+              ) : generalNews.length > 0 ? (
                 <div className="space-y-2">
-                  {marketNews.map((item, i) => (
-                    <a
-                      key={item.id ?? i}
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block rounded-xl border border-[#1e2d4a] p-3 hover:border-[#C9A84C]/30 transition-colors"
-                      style={{ background: 'rgba(13,20,34,0.8)' }}
-                    >
-                      <p className="text-white text-xs font-medium leading-snug mb-1">{item.headline}</p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[#C9A84C] text-[10px]">{item.source}</span>
-                        {item.datetime && (
-                          <>
-                            <span className="text-[#1e2d4a]">·</span>
-                            <span className="text-[#6b7280] text-[10px]">{timeAgo(item.datetime)}</span>
-                          </>
-                        )}
-                      </div>
-                    </a>
-                  ))}
+                  {generalNews.map((item, i) => <NewsCard key={i} item={item} />)}
                 </div>
               ) : (
                 <div className="text-[#6b7280] text-xs text-center py-6">No news available right now.</div>
@@ -476,7 +527,7 @@ export default function ExplorePage() {
           </>
         )}
 
-        {/* People mode: Top Brands */}
+        {/* ── PEOPLE MODE ───────────────────────────────────────────── */}
         {searchMode === 'people' && !query.trim() && (
           <div>
             <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Top Brands to Follow</div>
