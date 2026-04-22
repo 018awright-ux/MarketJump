@@ -167,14 +167,30 @@ export default function PublicBrandPage() {
   async function handleFollow() {
     if (!myId || !profile) return
     setFollowLoading(true)
+
+    // Get current user's following count to increment/decrement accurately
+    const { data: me } = await supabase
+      .from('profiles')
+      .select('following')
+      .eq('id', myId)
+      .single()
+
     if (isFollowing) {
       await supabase.from('follows').delete().eq('follower_id', myId).eq('following_id', id)
+      await Promise.allSettled([
+        supabase.from('profiles').update({ followers: Math.max(0, (profile.followers ?? 1) - 1) }).eq('id', id),
+        supabase.from('profiles').update({ following: Math.max(0, ((me?.following ?? 1) - 1)) }).eq('id', myId),
+      ])
       setIsFollowing(false)
       setProfile(prev => prev ? { ...prev, followers: Math.max(0, prev.followers - 1) } : prev)
     } else {
       await supabase.from('follows').upsert({ follower_id: myId, following_id: id }, { onConflict: 'follower_id,following_id' })
+      await Promise.allSettled([
+        supabase.from('profiles').update({ followers: (profile.followers ?? 0) + 1 }).eq('id', id),
+        supabase.from('profiles').update({ following: (me?.following ?? 0) + 1 }).eq('id', myId),
+      ])
       setIsFollowing(true)
-      setProfile(prev => prev ? { ...prev, followers: prev.followers + 1 } : prev)
+      setProfile(prev => prev ? { ...prev, followers: (prev.followers ?? 0) + 1 } : prev)
     }
     setFollowLoading(false)
   }

@@ -101,7 +101,7 @@ export default function JumpCard({
             <circle cx="59" cy="39" r="2" fill="#000" />
             {/* Nose ring */}
             <ellipse cx="50" cy="52" rx="10" ry="7" fill="#00dd04" />
-            <ellipse cx="50" cy="52" rx="6" ry="4" fill="#00C805" stroke="#00ff06" strokeWidth="1.5" fill-opacity="0" />
+            <ellipse cx="50" cy="52" rx="6" ry="4" fill="#00C805" stroke="#00ff06" strokeWidth="1.5" fillOpacity={0} />
           </svg>
           <span className="text-[#00C805] font-black text-2xl tracking-widest -rotate-6"
             style={{ textShadow: '0 0 20px #00C805' }}>BULLISH</span>

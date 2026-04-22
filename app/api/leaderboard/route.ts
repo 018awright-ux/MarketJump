@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     const supabase = await createClient()
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, level, market_score, accuracy, total_predictions')
+      .select('id, username, brand_name, level, market_score, accuracy, total_predictions')
       .order('market_score', { ascending: false })
       .limit(50)
 

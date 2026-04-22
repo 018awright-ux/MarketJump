@@ -100,11 +100,26 @@ export default function FeedPage() {
     const ticker = currentItem.data.ticker
     const price = currentItem.kind === 'card' ? (currentItem.data.price ?? 0) : 0
 
-    await fetch('/api/predictions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker, prediction, price }),
-    })
+    // Fire both in parallel — prediction records the long-term call, vote updates card sentiment
+    const calls: Promise<unknown>[] = [
+      fetch('/api/predictions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticker, prediction, price }),
+      }),
+    ]
+
+    if (currentItem.kind === 'card' && currentItem.data.id) {
+      calls.push(
+        fetch('/api/votes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ card_id: currentItem.data.id, vote: prediction }),
+        })
+      )
+    }
+
+    await Promise.allSettled(calls)
     advance()
   }
 

@@ -11,6 +11,7 @@ interface LeaderboardEntry {
   rank: number
   user_id: string
   username: string
+  brand_name?: string | null
   level: UserLevel
   accuracy: number
   market_score: number
@@ -97,9 +98,12 @@ export default function LeaderboardPage() {
                 {/* User info */}
                 <div className="flex-1 text-left">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-white font-bold text-sm">{entry.username}</span>
+                    <span className="text-white font-bold text-sm">{entry.brand_name || entry.username}</span>
                     <LevelBadge level={entry.level} />
                   </div>
+                  {entry.brand_name && (
+                    <div className="text-[#6b7280] text-[10px] mb-0.5">@{entry.username}</div>
+                  )}
                   <div className="text-[#6b7280] text-xs">
                     {entry.accuracy?.toFixed(1)}% accuracy
                     {entry.total_predictions ? ` · ${entry.total_predictions} calls` : ''}

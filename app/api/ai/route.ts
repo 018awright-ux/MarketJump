@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     const systemPrompt = SYSTEM_PROMPTS[levelKey] ?? SYSTEM_PROMPTS.rookie
 
     const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 400,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],

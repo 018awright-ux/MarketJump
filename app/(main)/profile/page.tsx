@@ -96,6 +96,11 @@ export default function BrandPage() {
 
   useEffect(() => {
     loadBrand()
+    // Fire-and-forget: resolve any expired predictions, then refresh if anything changed
+    fetch('/api/resolve')
+      .then(r => r.json())
+      .then(data => { if (data.resolved > 0) loadBrand() })
+      .catch(() => {})
   }, [])
 
   async function loadBrand() {

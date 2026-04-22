@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { MOCK_CARDS } from '@/lib/mock-data'
 import type { JumpCard } from '@/lib/types'
+import { createClient } from '@/lib/supabase/client'
 
 interface SearchResult {
   symbol: string
@@ -28,6 +30,16 @@ interface StockData {
   cards: JumpCard[]
 }
 
+interface BrandResult {
+  id: string
+  username: string
+  brand_name: string | null
+  level: string
+  market_score: number
+  accuracy: number
+  total_predictions: number
+}
+
 const TRENDING = ['AAPL', 'NVDA', 'TSLA', 'AMZN', 'META', 'MSFT', 'AMD', 'SPY']
 
 const SECTORS = [
@@ -43,19 +55,64 @@ const SECTORS = [
 ]
 
 export default function ExplorePage() {
+  const router = useRouter()
+  const [searchMode, setSearchMode] = useState<'stocks' | 'people'>('stocks')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const [stockData, setStockData] = useState<StockData | null>(null)
   const [loadingStock, setLoadingStock] = useState(false)
   const [cardIndex, setCardIndex] = useState(0)
+  const [brandResults, setBrandResults] = useState<BrandResult[]>([])
+  const [topBrands, setTopBrands] = useState<BrandResult[]>([])
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Load top brands on mount
   useEffect(() => {
-    if (!query.trim()) { setResults([]); return }
+    async function loadTopBrands() {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username, brand_name, level, market_score, accuracy, total_predictions')
+        .order('market_score', { ascending: false })
+        .limit(6)
+      setTopBrands(data ?? [])
+    }
+    loadTopBrands()
+  }, [])
+
+  // Clear results when search mode changes
+  useEffect(() => {
+    setQuery('')
+    setResults([])
+    setBrandResults([])
+  }, [searchMode])
+
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults([])
+      setBrandResults([])
+      return
+    }
     if (debounce.current) clearTimeout(debounce.current)
     debounce.current = setTimeout(async () => {
       setSearching(true)
+      if (searchMode === 'people') {
+        try {
+          const supabase = createClient()
+          const { data } = await supabase
+            .from('profiles')
+            .select('id, username, brand_name, level, market_score, accuracy, total_predictions')
+            .or(`username.ilike.%${query}%,brand_name.ilike.%${query}%`)
+            .limit(10)
+          setBrandResults(data ?? [])
+        } catch {
+          setBrandResults([])
+        }
+        setSearching(false)
+        return
+      }
+      // stocks mode
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
         const data = await res.json()
@@ -63,7 +120,7 @@ export default function ExplorePage() {
       } catch { setResults([]) }
       setSearching(false)
     }, 400)
-  }, [query])
+  }, [query, searchMode])
 
   async function loadStock(ticker: string) {
     setLoadingStock(true)
@@ -109,7 +166,7 @@ export default function ExplorePage() {
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search any ticker or company..."
+            placeholder={searchMode === 'stocks' ? 'Search any ticker or company...' : 'Search brands or usernames...'}
             className="w-full border rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:outline-none transition-colors"
             style={{ background: 'rgba(13,20,34,0.8)', borderColor: 'rgba(201,168,76,0.2)' }}
           />
@@ -118,8 +175,32 @@ export default function ExplorePage() {
           )}
         </div>
 
-        {/* Search dropdown */}
-        {results.length > 0 && (
+        {/* Search mode tabs */}
+        <div className="flex border-b border-[#2a2a3a] mb-3 mt-2">
+          <button
+            onClick={() => setSearchMode('stocks')}
+            className={`flex-1 py-2 text-xs font-bold transition-colors ${
+              searchMode === 'stocks'
+                ? 'text-[#C9A84C] border-b-2 border-[#C9A84C]'
+                : 'text-[#6b7280]'
+            }`}
+          >
+            Stocks
+          </button>
+          <button
+            onClick={() => setSearchMode('people')}
+            className={`flex-1 py-2 text-xs font-bold transition-colors ${
+              searchMode === 'people'
+                ? 'text-[#C9A84C] border-b-2 border-[#C9A84C]'
+                : 'text-[#6b7280]'
+            }`}
+          >
+            People
+          </button>
+        </div>
+
+        {/* Stock search dropdown */}
+        {searchMode === 'stocks' && results.length > 0 && (
           <div className="mt-1 rounded-xl overflow-hidden border border-[#1e2d4a] z-20 relative" style={{ background: 'rgba(13,20,34,0.97)' }}>
             {results.map(r => (
               <button
@@ -133,12 +214,32 @@ export default function ExplorePage() {
             ))}
           </div>
         )}
+
+        {/* People search results */}
+        {searchMode === 'people' && brandResults.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {brandResults.map(b => (
+              <button key={b.id} onClick={() => router.push(`/profile/${b.id}`)}
+                className="w-full flex items-center gap-3 p-3 rounded-2xl border border-[#2a2a3a] bg-[#12121a] hover:border-[#C9A84C]/30 transition-colors">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-base flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg, #1B3066, #C9A84C)', color: '#fff' }}>
+                  {(b.brand_name || b.username)[0].toUpperCase()}
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="text-white font-bold text-sm">{b.brand_name || b.username}</div>
+                  <div className="text-[#6b7280] text-xs">{b.accuracy?.toFixed(1)}% acc · {b.market_score} score</div>
+                </div>
+                <div className="text-[#C9A84C] text-xs font-bold capitalize">{b.level}</div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 pb-4">
 
         {/* Selected stock panel */}
-        {stockData && (
+        {searchMode === 'stocks' && stockData && (
           <div className="mb-5 animate-slide-up">
             <div className="rounded-2xl border border-[#C9A84C]/25 overflow-hidden" style={{ background: 'rgba(8,12,20,0.88)' }}>
               {loadingStock ? (
@@ -241,70 +342,103 @@ export default function ExplorePage() {
           </div>
         )}
 
-        {/* Trending tickers */}
-        <div className="mb-5">
-          <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Trending on MarketJump</div>
-          <div className="flex flex-wrap gap-2">
-            {TRENDING.map(ticker => (
-              <button
-                key={ticker}
-                onClick={() => loadStock(ticker)}
-                className="px-4 py-2 rounded-xl border text-sm font-bold transition-all active:scale-95"
-                style={{
-                  background: stockData?.ticker === ticker ? 'rgba(201,168,76,0.15)' : 'rgba(13,20,34,0.8)',
-                  borderColor: stockData?.ticker === ticker ? 'rgba(201,168,76,0.5)' : 'rgba(30,45,74,0.8)',
-                  color: stockData?.ticker === ticker ? '#C9A84C' : '#fff',
-                }}
-              >
-                {ticker}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Sector heatmap */}
-        <div className="mb-5">
-          <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Sector Pulse</div>
-          <div className="grid grid-cols-3 gap-2">
-            {SECTORS.map(sector => (
-              <div
-                key={sector.name}
-                className="rounded-xl p-3 text-center border"
-                style={{
-                  background: sector.up ? 'rgba(0,200,5,0.08)' : 'rgba(255,59,48,0.08)',
-                  borderColor: sector.up ? 'rgba(0,200,5,0.2)' : 'rgba(255,59,48,0.2)',
-                }}
-              >
-                <div className="text-xs text-[#9ca3af] mb-1">{sector.name}</div>
-                <div className={`text-sm font-bold ${sector.up ? 'text-[#00C805]' : 'text-[#FF3B30]'}`}>
-                  {sector.up ? '+' : ''}{sector.change}%
-                </div>
+        {/* Stocks mode: Trending + Sectors + Macro */}
+        {searchMode === 'stocks' && (
+          <>
+            {/* Trending tickers */}
+            <div className="mb-5">
+              <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Trending on MarketJump</div>
+              <div className="flex flex-wrap gap-2">
+                {TRENDING.map(ticker => (
+                  <button
+                    key={ticker}
+                    onClick={() => loadStock(ticker)}
+                    className="px-4 py-2 rounded-xl border text-sm font-bold transition-all active:scale-95"
+                    style={{
+                      background: stockData?.ticker === ticker ? 'rgba(201,168,76,0.15)' : 'rgba(13,20,34,0.8)',
+                      borderColor: stockData?.ticker === ticker ? 'rgba(201,168,76,0.5)' : 'rgba(30,45,74,0.8)',
+                      color: stockData?.ticker === ticker ? '#C9A84C' : '#fff',
+                    }}
+                  >
+                    {ticker}
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        {/* Macro feed */}
-        <div>
-          <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Macro Pulse</div>
-          <div className="space-y-2">
-            {[
-              { headline: 'Fed holds rates at 4.25-4.50%, signals two cuts in 2025', source: 'Federal Reserve', time: '2h ago' },
-              { headline: 'OPEC+ extends production cuts through Q3, Brent crude spikes 4%', source: 'Reuters', time: '4h ago' },
-              { headline: 'US-China trade tensions escalate: 60% tariffs on EVs proposed', source: 'Reuters', time: '6h ago' },
-              { headline: 'CPI comes in at 2.8% YoY, cooler than expected', source: 'BLS', time: '8h ago' },
-            ].map((item, i) => (
-              <div key={i} className="rounded-xl border border-[#1e2d4a] p-3" style={{ background: 'rgba(13,20,34,0.8)' }}>
-                <p className="text-white text-xs font-medium leading-snug mb-1">{item.headline}</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-[#C9A84C] text-[10px]">{item.source}</span>
-                  <span className="text-[#1e2d4a]">·</span>
-                  <span className="text-[#6b7280] text-[10px]">{item.time}</span>
-                </div>
+            {/* Sector heatmap */}
+            <div className="mb-5">
+              <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Sector Pulse</div>
+              <div className="grid grid-cols-3 gap-2">
+                {SECTORS.map(sector => (
+                  <div
+                    key={sector.name}
+                    className="rounded-xl p-3 text-center border"
+                    style={{
+                      background: sector.up ? 'rgba(0,200,5,0.08)' : 'rgba(255,59,48,0.08)',
+                      borderColor: sector.up ? 'rgba(0,200,5,0.2)' : 'rgba(255,59,48,0.2)',
+                    }}
+                  >
+                    <div className="text-xs text-[#9ca3af] mb-1">{sector.name}</div>
+                    <div className={`text-sm font-bold ${sector.up ? 'text-[#00C805]' : 'text-[#FF3B30]'}`}>
+                      {sector.up ? '+' : ''}{sector.change}%
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+
+            {/* Macro feed */}
+            <div>
+              <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Macro Pulse</div>
+              <div className="space-y-2">
+                {[
+                  { headline: 'Fed holds rates at 4.25-4.50%, signals two cuts in 2025', source: 'Federal Reserve', time: '2h ago' },
+                  { headline: 'OPEC+ extends production cuts through Q3, Brent crude spikes 4%', source: 'Reuters', time: '4h ago' },
+                  { headline: 'US-China trade tensions escalate: 60% tariffs on EVs proposed', source: 'Reuters', time: '6h ago' },
+                  { headline: 'CPI comes in at 2.8% YoY, cooler than expected', source: 'BLS', time: '8h ago' },
+                ].map((item, i) => (
+                  <div key={i} className="rounded-xl border border-[#1e2d4a] p-3" style={{ background: 'rgba(13,20,34,0.8)' }}>
+                    <p className="text-white text-xs font-medium leading-snug mb-1">{item.headline}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[#C9A84C] text-[10px]">{item.source}</span>
+                      <span className="text-[#1e2d4a]">·</span>
+                      <span className="text-[#6b7280] text-[10px]">{item.time}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* People mode: Top Brands (shown when no search query) */}
+        {searchMode === 'people' && !query.trim() && (
+          <div>
+            <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Top Brands to Follow</div>
+            {topBrands.length > 0 ? (
+              <div className="space-y-2">
+                {topBrands.map(b => (
+                  <button key={b.id} onClick={() => router.push(`/profile/${b.id}`)}
+                    className="w-full flex items-center gap-3 p-3 rounded-2xl border border-[#2a2a3a] bg-[#12121a] hover:border-[#C9A84C]/30 transition-colors">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-base flex-shrink-0"
+                      style={{ background: 'linear-gradient(135deg, #1B3066, #C9A84C)', color: '#fff' }}>
+                      {(b.brand_name || b.username)[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="text-white font-bold text-sm">{b.brand_name || b.username}</div>
+                      <div className="text-[#6b7280] text-xs">{b.accuracy?.toFixed(1)}% acc · {b.market_score} score</div>
+                    </div>
+                    <div className="text-[#C9A84C] text-xs font-bold capitalize">{b.level}</div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[#6b7280] text-xs text-center py-8">Loading top brands...</div>
+            )}
           </div>
-        </div>
+        )}
+
       </div>
     </div>
   )

@@ -9,6 +9,8 @@ const PROTECTED_PREFIXES = [
   '/leaderboard',
   '/profile',
   '/onboarding',
+  '/notifications',
+  '/settings',
 ]
 
 export async function middleware(request: NextRequest) {
