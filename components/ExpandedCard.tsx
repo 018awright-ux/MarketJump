@@ -60,9 +60,13 @@ export default function ExpandedCard({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] bg-[#0a0a0f]/95 backdrop-blur-sm flex flex-col animate-fade-in max-w-lg mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between p-5 border-b border-[#1e2d4a]">
+    // z-[60] sits above BottomNav (z-50) and covers the full viewport
+    <div
+      className="fixed inset-0 z-[60] flex flex-col animate-fade-in"
+      style={{ background: 'rgba(10,10,15,0.97)', backdropFilter: 'blur(12px)' }}
+    >
+      {/* ── Header ── */}
+      <div className="flex-none flex items-center justify-between px-5 py-4 border-b border-[#1e2d4a]">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xl font-black text-white">{card.ticker}</span>
@@ -74,15 +78,15 @@ export default function ExpandedCard({
           </div>
           <SourceBadge source={card.source} sourceName={card.source_name} />
         </div>
-        <button onClick={onClose} className="text-[#6b7280] hover:text-white transition-colors p-2">
+        <button onClick={onClose} className="text-[#6b7280] p-2 active:text-white">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
 
-      {/* Content — pb-48 ensures scroll clears the fixed action bar */}
-      <div className="flex-1 overflow-y-auto pb-48">
+      {/* ── Scrollable content ── */}
+      <div className="flex-1 overflow-y-auto min-h-0">
         {/* Headline + summary */}
         <div className="p-5 border-b border-[#1e2d4a]">
           <h2 className="text-white font-bold text-base leading-snug mb-2">{card.headline}</h2>
@@ -139,10 +143,10 @@ export default function ExpandedCard({
         </div>
       </div>
 
-      {/* Fixed action bar — sits above bottom nav, never overlaps */}
+      {/* ── Action bar — flex-none, always at bottom, never overlaps ── */}
       <div
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg px-5 pt-4 pb-6 z-[61] border-t border-[#1e2d4a] space-y-3"
-        style={{ background: 'rgba(10,10,15,0.97)', backdropFilter: 'blur(16px)' }}
+        className="flex-none px-5 pt-4 pb-6 border-t border-[#1e2d4a] space-y-3"
+        style={{ background: 'rgba(10,10,15,0.99)' }}
       >
         <div className="grid grid-cols-3 gap-3">
           <button
