@@ -60,7 +60,7 @@ export default function ExpandedCard({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#0a0a0f]/95 backdrop-blur-sm flex flex-col animate-fade-in max-w-lg mx-auto">
+    <div className="fixed inset-0 z-[60] bg-[#0a0a0f]/95 backdrop-blur-sm flex flex-col animate-fade-in max-w-lg mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between p-5 border-b border-[#1e2d4a]">
         <div>
@@ -81,8 +81,8 @@ export default function ExpandedCard({
         </button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Content — pb-48 ensures scroll clears the fixed action bar */}
+      <div className="flex-1 overflow-y-auto pb-48">
         {/* Headline + summary */}
         <div className="p-5 border-b border-[#1e2d4a]">
           <h2 className="text-white font-bold text-base leading-snug mb-2">{card.headline}</h2>
@@ -139,26 +139,29 @@ export default function ExpandedCard({
         </div>
       </div>
 
-      {/* Action buttons — pb-24 clears the fixed bottom nav */}
-      <div className="px-5 pt-5 pb-24 border-t border-[#1e2d4a] space-y-3">
+      {/* Fixed action bar — sits above bottom nav, never overlaps */}
+      <div
+        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg px-5 pt-4 pb-6 z-[61] border-t border-[#1e2d4a] space-y-3"
+        style={{ background: 'rgba(10,10,15,0.97)', backdropFilter: 'blur(16px)' }}
+      >
         <div className="grid grid-cols-3 gap-3">
           <button
             onClick={onBullish}
-            className="flex flex-col items-center gap-1.5 bg-[#00C805]/10 border border-[#00C805]/30 rounded-2xl py-3 hover:bg-[#00C805]/20 transition-colors"
+            className="flex flex-col items-center gap-1.5 bg-[#00C805]/10 border border-[#00C805]/30 rounded-2xl py-3 active:scale-95 transition-transform"
           >
             <span className="text-xl">🐂</span>
             <span className="text-[#00C805] text-xs font-bold">Bullish</span>
           </button>
           <button
             onClick={onBearish}
-            className="flex flex-col items-center gap-1.5 bg-[#FF3B30]/10 border border-[#FF3B30]/30 rounded-2xl py-3 hover:bg-[#FF3B30]/20 transition-colors"
+            className="flex flex-col items-center gap-1.5 bg-[#FF3B30]/10 border border-[#FF3B30]/30 rounded-2xl py-3 active:scale-95 transition-transform"
           >
             <span className="text-xl">🐻</span>
             <span className="text-[#FF3B30] text-xs font-bold">Bearish</span>
           </button>
           <button
             onClick={onTrack}
-            className={`flex flex-col items-center gap-1.5 border rounded-2xl py-3 transition-colors ${
+            className={`flex flex-col items-center gap-1.5 border rounded-2xl py-3 active:scale-95 transition-transform ${
               tracked ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-[#111827] border-[#1e2d4a]'
             }`}
           >
@@ -168,7 +171,7 @@ export default function ExpandedCard({
         </div>
         <button
           onClick={onJump}
-          className="w-full bg-[#00C805] text-black font-black py-4 rounded-2xl text-lg tracking-wide hover:bg-[#00e006] transition-colors"
+          className="w-full bg-[#00C805] text-black font-black py-4 rounded-2xl text-lg tracking-wide active:scale-95 transition-transform"
         >
           JUMP ⚡
         </button>
