@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { MOCK_CARDS } from '@/lib/mock-data'
 import type { JumpCard } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 
@@ -19,8 +18,18 @@ interface Quote {
 interface NewsItem {
   id: number
   headline: string
+  summary: string
   source: string
   url: string
+  datetime: number
+  related?: string
+}
+
+interface SectorItem {
+  name: string
+  symbol: string
+  change: number | null
+  up: boolean
 }
 
 interface StockData {
@@ -42,17 +51,12 @@ interface BrandResult {
 
 const TRENDING = ['AAPL', 'NVDA', 'TSLA', 'AMZN', 'META', 'MSFT', 'AMD', 'SPY']
 
-const SECTORS = [
-  { name: 'Tech', change: 1.8, up: true },
-  { name: 'Energy', change: 2.3, up: true },
-  { name: 'Healthcare', change: -0.4, up: false },
-  { name: 'Finance', change: 0.9, up: true },
-  { name: 'Crypto', change: 4.1, up: true },
-  { name: 'Commodities', change: -1.2, up: false },
-  { name: 'Real Estate', change: -0.7, up: false },
-  { name: 'Macro', change: 0.3, up: true },
-  { name: 'Consumer', change: 1.1, up: true },
-]
+function timeAgo(unix: number): string {
+  const diff = Math.floor(Date.now() / 1000) - unix
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  return `${Math.floor(diff / 86400)}d ago`
+}
 
 export default function ExplorePage() {
   const router = useRouter()
@@ -65,12 +69,16 @@ export default function ExplorePage() {
   const [cardIndex, setCardIndex] = useState(0)
   const [brandResults, setBrandResults] = useState<BrandResult[]>([])
   const [topBrands, setTopBrands] = useState<BrandResult[]>([])
+  const [marketNews, setMarketNews] = useState<NewsItem[]>([])
+  const [sectors, setSectors] = useState<SectorItem[]>([])
+  const [loadingNews, setLoadingNews] = useState(true)
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Load top brands on mount
+  // Load top brands, market news, and sector data on mount
   useEffect(() => {
+    const supabase = createClient()
+
     async function loadTopBrands() {
-      const supabase = createClient()
       const { data } = await supabase
         .from('profiles')
         .select('id, username, brand_name, level, market_score, accuracy, total_predictions')
@@ -78,7 +86,27 @@ export default function ExplorePage() {
         .limit(6)
       setTopBrands(data ?? [])
     }
+
+    async function loadNews() {
+      try {
+        const res = await fetch('/api/news')
+        const data = await res.json()
+        setMarketNews(data.news ?? [])
+      } catch { /* keep empty */ }
+      setLoadingNews(false)
+    }
+
+    async function loadSectors() {
+      try {
+        const res = await fetch('/api/sectors')
+        const data = await res.json()
+        if (data.sectors?.length > 0) setSectors(data.sectors)
+      } catch { /* keep empty */ }
+    }
+
     loadTopBrands()
+    loadNews()
+    loadSectors()
   }, [])
 
   // Clear results when search mode changes
@@ -128,15 +156,22 @@ export default function ExplorePage() {
     setResults([])
     setCardIndex(0)
     try {
-      const res = await fetch(`/api/stocks/${ticker}`)
-      const data = await res.json()
-      // Get cards for this ticker from mock (or all cards if none match)
-      const tickerCards = MOCK_CARDS.filter(c => c.ticker === ticker)
+      const supabase = createClient()
+      const [stockRes, { data: dbCards }] = await Promise.all([
+        fetch(`/api/stocks/${ticker}`),
+        supabase
+          .from('jump_cards')
+          .select('*')
+          .eq('ticker', ticker)
+          .order('created_at', { ascending: false })
+          .limit(10),
+      ])
+      const data = await stockRes.json()
       setStockData({
         ticker,
         quote: data.quote,
         news: data.news ?? [],
-        cards: tickerCards.length > 0 ? tickerCards : MOCK_CARDS.slice(0, 3),
+        cards: (dbCards ?? []) as JumpCard[],
       })
     } catch {
       setStockData({ ticker, quote: null, news: [], cards: [] })
@@ -146,7 +181,7 @@ export default function ExplorePage() {
 
   function jumpNext() {
     if (!stockData) return
-    setCardIndex(i => (i + 1) % stockData.cards.length)
+    setCardIndex(i => (i + 1) % Math.max(stockData.cards.length, 1))
   }
 
   const currentCard = stockData?.cards[cardIndex]
@@ -260,7 +295,6 @@ export default function ExplorePage() {
                         </div>
                       )}
                     </div>
-                    {/* Card counter */}
                     {stockData.cards.length > 0 && (
                       <span className="text-[#6b7280] text-xs font-mono">
                         {cardIndex + 1}/{stockData.cards.length} topics
@@ -286,7 +320,6 @@ export default function ExplorePage() {
                       <p className="text-white text-sm font-semibold leading-snug mb-1">{currentCard.headline}</p>
                       <p className="text-[#9ca3af] text-xs leading-relaxed line-clamp-3">{currentCard.summary}</p>
 
-                      {/* Momentum mini */}
                       <div className="mt-3 flex items-center gap-2">
                         <span className="text-[#00C805] text-xs font-bold">🐂 {currentCard.bull_percent}%</span>
                         <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,59,48,0.3)' }}>
@@ -297,32 +330,33 @@ export default function ExplorePage() {
                     </div>
                   )}
 
-                  {/* JUMP button — cycles topics */}
-                  <div className="flex justify-center py-4">
-                    <button
-                      onClick={jumpNext}
-                      className="w-16 h-16 rounded-full font-black text-xs tracking-widest transition-all active:scale-90 flex flex-col items-center justify-center gap-0.5 shadow-lg"
-                      style={{
-                        background: 'linear-gradient(135deg, #1B3066 0%, #2a4a8a 50%, #C9A84C 100%)',
-                        color: '#fff',
-                        boxShadow: '0 0 20px rgba(201,168,76,0.3)',
-                      }}
-                    >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      <span className="text-[8px] font-black tracking-widest">JUMP</span>
-                    </button>
-                  </div>
+                  {stockData.cards.length > 1 && (
+                    <div className="flex justify-center py-3 border-b border-[#1e2d4a]">
+                      <button
+                        onClick={jumpNext}
+                        className="w-14 h-14 rounded-full font-black text-xs tracking-widest transition-all active:scale-90 flex flex-col items-center justify-center gap-0.5 shadow-lg"
+                        style={{
+                          background: 'linear-gradient(135deg, #1B3066 0%, #2a4a8a 50%, #C9A84C 100%)',
+                          color: '#fff',
+                          boxShadow: '0 0 20px rgba(201,168,76,0.3)',
+                        }}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span className="text-[8px] font-black tracking-widest">JUMP</span>
+                      </button>
+                    </div>
+                  )}
 
-                  {/* Latest news */}
+                  {/* Latest news from Finnhub */}
                   {stockData.news.length > 0 && (
-                    <div className="border-t border-[#1e2d4a] p-4">
+                    <div className="p-4">
                       <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-2">Latest News</div>
                       <div className="space-y-2">
-                        {stockData.news.slice(0, 4).map(n => (
+                        {stockData.news.slice(0, 5).map((n, i) => (
                           <a
-                            key={n.id}
+                            key={n.id ?? i}
                             href={n.url}
                             target="_blank"
                             rel="noopener noreferrer"
@@ -330,7 +364,15 @@ export default function ExplorePage() {
                             style={{ background: 'rgba(30,45,74,0.3)' }}
                           >
                             <p className="text-white text-xs font-medium leading-snug mb-1">{n.headline}</p>
-                            <span className="text-[#6b7280] text-[10px]">{n.source}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[#C9A84C] text-[10px]">{n.source}</span>
+                              {n.datetime && (
+                                <>
+                                  <span className="text-[#1e2d4a]">·</span>
+                                  <span className="text-[#6b7280] text-[10px]">{timeAgo(n.datetime)}</span>
+                                </>
+                              )}
+                            </div>
                           </a>
                         ))}
                       </div>
@@ -342,7 +384,7 @@ export default function ExplorePage() {
           </div>
         )}
 
-        {/* Stocks mode: Trending + Sectors + Macro */}
+        {/* Stocks mode: Trending + Sectors + Market News */}
         {searchMode === 'stocks' && (
           <>
             {/* Trending tickers */}
@@ -366,53 +408,75 @@ export default function ExplorePage() {
               </div>
             </div>
 
-            {/* Sector heatmap */}
-            <div className="mb-5">
-              <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Sector Pulse</div>
-              <div className="grid grid-cols-3 gap-2">
-                {SECTORS.map(sector => (
-                  <div
-                    key={sector.name}
-                    className="rounded-xl p-3 text-center border"
-                    style={{
-                      background: sector.up ? 'rgba(0,200,5,0.08)' : 'rgba(255,59,48,0.08)',
-                      borderColor: sector.up ? 'rgba(0,200,5,0.2)' : 'rgba(255,59,48,0.2)',
-                    }}
-                  >
-                    <div className="text-xs text-[#9ca3af] mb-1">{sector.name}</div>
-                    <div className={`text-sm font-bold ${sector.up ? 'text-[#00C805]' : 'text-[#FF3B30]'}`}>
-                      {sector.up ? '+' : ''}{sector.change}%
+            {/* Sector heatmap — real ETF data */}
+            {sectors.length > 0 && (
+              <div className="mb-5">
+                <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Sector Pulse</div>
+                <div className="grid grid-cols-3 gap-2">
+                  {sectors.map(sector => (
+                    <div
+                      key={sector.name}
+                      className="rounded-xl p-3 text-center border"
+                      style={{
+                        background: sector.up ? 'rgba(0,200,5,0.08)' : 'rgba(255,59,48,0.08)',
+                        borderColor: sector.up ? 'rgba(0,200,5,0.2)' : 'rgba(255,59,48,0.2)',
+                      }}
+                    >
+                      <div className="text-xs text-[#9ca3af] mb-1">{sector.name}</div>
+                      <div className={`text-sm font-bold ${sector.up ? 'text-[#00C805]' : 'text-[#FF3B30]'}`}>
+                        {sector.change === null ? '—' : `${sector.up ? '+' : ''}${sector.change.toFixed(2)}%`}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Macro feed */}
+            {/* Market News — real Finnhub general news */}
             <div>
-              <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Macro Pulse</div>
-              <div className="space-y-2">
-                {[
-                  { headline: 'Fed holds rates at 4.25-4.50%, signals two cuts in 2025', source: 'Federal Reserve', time: '2h ago' },
-                  { headline: 'OPEC+ extends production cuts through Q3, Brent crude spikes 4%', source: 'Reuters', time: '4h ago' },
-                  { headline: 'US-China trade tensions escalate: 60% tariffs on EVs proposed', source: 'Reuters', time: '6h ago' },
-                  { headline: 'CPI comes in at 2.8% YoY, cooler than expected', source: 'BLS', time: '8h ago' },
-                ].map((item, i) => (
-                  <div key={i} className="rounded-xl border border-[#1e2d4a] p-3" style={{ background: 'rgba(13,20,34,0.8)' }}>
-                    <p className="text-white text-xs font-medium leading-snug mb-1">{item.headline}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[#C9A84C] text-[10px]">{item.source}</span>
-                      <span className="text-[#1e2d4a]">·</span>
-                      <span className="text-[#6b7280] text-[10px]">{item.time}</span>
+              <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Market News</div>
+              {loadingNews ? (
+                <div className="space-y-2">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="rounded-xl border border-[#1e2d4a] p-3 space-y-2" style={{ background: 'rgba(13,20,34,0.8)' }}>
+                      <div className="h-3 bg-[#1e2d4a] rounded animate-pulse w-full" />
+                      <div className="h-3 bg-[#1e2d4a] rounded animate-pulse w-2/3" />
+                      <div className="h-2 bg-[#1e2d4a] rounded animate-pulse w-1/3" />
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : marketNews.length > 0 ? (
+                <div className="space-y-2">
+                  {marketNews.map((item, i) => (
+                    <a
+                      key={item.id ?? i}
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block rounded-xl border border-[#1e2d4a] p-3 hover:border-[#C9A84C]/30 transition-colors"
+                      style={{ background: 'rgba(13,20,34,0.8)' }}
+                    >
+                      <p className="text-white text-xs font-medium leading-snug mb-1">{item.headline}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[#C9A84C] text-[10px]">{item.source}</span>
+                        {item.datetime && (
+                          <>
+                            <span className="text-[#1e2d4a]">·</span>
+                            <span className="text-[#6b7280] text-[10px]">{timeAgo(item.datetime)}</span>
+                          </>
+                        )}
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-[#6b7280] text-xs text-center py-6">No news available right now.</div>
+              )}
             </div>
           </>
         )}
 
-        {/* People mode: Top Brands (shown when no search query) */}
+        {/* People mode: Top Brands */}
         {searchMode === 'people' && !query.trim() && (
           <div>
             <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Top Brands to Follow</div>
