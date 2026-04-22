@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Metadata } from 'next'
-import { Suspense } from 'react'
 import type { UserLevel } from '@/lib/types'
 import LevelBadge from '@/components/LevelBadge'
 
@@ -111,11 +110,12 @@ export async function generateMetadata({
   }
 }
 
-async function BrandPageContent({
-  brandname,
+export default async function PublicBrandPage({
+  params,
 }: {
-  brandname: string
+  params: Promise<{ brandname: string }>
 }) {
+  const { brandname } = await params
   const { profile, predictions } = await fetchBrandData(brandname)
 
   if (!profile) {
@@ -303,22 +303,5 @@ async function BrandPageContent({
         </div>
       </div>
     </div>
-  )
-}
-
-export default async function PublicBrandPage({
-  params,
-}: {
-  params: Promise<{ brandname: string }>
-}) {
-  const { brandname } = await params
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#080c14' }}>
-        <div className="text-[#6b7280] text-sm animate-pulse">Loading brand...</div>
-      </div>
-    }>
-      <BrandPageContent brandname={brandname} />
-    </Suspense>
   )
 }
