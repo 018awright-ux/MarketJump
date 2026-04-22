@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Metadata } from 'next'
+
+export const dynamic = 'force-dynamic'
 import type { UserLevel } from '@/lib/types'
 import LevelBadge from '@/components/LevelBadge'
 
