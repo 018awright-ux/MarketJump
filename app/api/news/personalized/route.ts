@@ -13,6 +13,7 @@ const INTEREST_KEYWORDS: Record<string, string[]> = {
   'Real Estate': ['reit', 'real estate', 'housing', 'mortgage', 'property'],
   Macro: ['fed', 'cpi', 'gdp', 'inflation', 'recession', 'employment', 'jobs', 'tariff', 'trade'],
   Options: ['options', 'calls', 'puts', 'volatility', 'vix', 'derivatives'],
+  'Index Funds': ['s&p 500', 'spy', 'qqq', 'dow jones', 'nasdaq', 'index fund', 'etf', 'iwm', 'vti', 'russell'],
 }
 
 // Simple server-side cache per request signature (in-memory, resets on cold start)

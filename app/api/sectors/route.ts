@@ -4,6 +4,8 @@ const FINNHUB_BASE = 'https://finnhub.io/api/v1'
 const API_KEY = process.env.FINNHUB_API_KEY!
 
 const SECTOR_ETFS = [
+  { name: 'S&P 500',     symbol: 'SPY'  },
+  { name: 'Nasdaq',      symbol: 'QQQ'  },
   { name: 'Tech',        symbol: 'XLK'  },
   { name: 'Energy',      symbol: 'XLE'  },
   { name: 'Healthcare',  symbol: 'XLV'  },
@@ -11,8 +13,9 @@ const SECTOR_ETFS = [
   { name: 'Crypto',      symbol: 'BITO' },
   { name: 'Real Estate', symbol: 'XLRE' },
   { name: 'Consumer',    symbol: 'XLY'  },
-  { name: 'Industrials', symbol: 'XLI'  },
   { name: 'Commodities', symbol: 'GLD'  },
+  { name: 'Dow Jones',   symbol: 'DIA'  },
+  { name: 'Small Cap',   symbol: 'IWM'  },
 ]
 
 // 5-minute cache — stale values kept so the UI never shows dashes

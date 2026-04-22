@@ -49,7 +49,7 @@ interface BrandResult {
   total_predictions: number
 }
 
-const TRENDING = ['AAPL', 'NVDA', 'TSLA', 'AMZN', 'META', 'MSFT', 'AMD', 'SPY']
+const TRENDING = ['SPY', 'QQQ', 'DIA', 'IWM', 'AAPL', 'NVDA', 'TSLA', 'AMZN', 'META', 'MSFT', 'AMD']
 
 function timeAgo(unix: number): string {
   const diff = Math.floor(Date.now() / 1000) - unix

@@ -28,7 +28,7 @@ const LEVELS: { id: UserLevel; label: string; icon: string; description: string 
 
 const SECTORS: Sector[] = [
   'Tech', 'Energy', 'Healthcare', 'Finance', 'Crypto',
-  'Commodities', 'Real Estate', 'Macro', 'Options',
+  'Commodities', 'Real Estate', 'Macro', 'Options', 'Index Funds',
 ]
 
 export default function OnboardingPage() {

@@ -10,6 +10,7 @@ export type Sector =
   | 'Real Estate'
   | 'Macro'
   | 'Options'
+  | 'Index Funds'
 
 export type PredictionType = 'bullish' | 'bearish'
 export type PredictionResult = 'correct' | 'incorrect' | 'pending'
