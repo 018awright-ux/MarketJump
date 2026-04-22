@@ -209,27 +209,7 @@ export default function MarketBackground() {
         }}
       />
 
-      {/* Live ticker tape */}
-      <div
-        className="absolute top-0 left-0 right-0 h-7 overflow-hidden border-b border-[#C9A84C]/20 z-10"
-        style={{ background: 'rgba(8,12,20,0.92)' }}
-      >
-        <div
-          className="flex whitespace-nowrap h-full items-center"
-          style={{ animation: 'ticker 40s linear infinite' }}
-        >
-          {[...tickers, ...tickers, ...tickers].map((item, i) => (
-            <span key={i} className="inline-flex items-center gap-1.5 px-4 text-[10px] font-mono">
-              <span className="text-[#C9A84C] font-bold">{item.symbol}</span>
-              <span className="text-white/70">{formatPrice(item.price)}</span>
-              <span className={item.up ? 'text-[#00C805]' : 'text-[#FF3B30]'}>
-                {formatChange(item.changePct)}
-              </span>
-              <span className="text-[#C9A84C]/25 ml-2">▪</span>
-            </span>
-          ))}
-        </div>
-      </div>
+      {/* Ticker tape is now rendered in layout.tsx above the nav row */}
     </div>
   )
 }
