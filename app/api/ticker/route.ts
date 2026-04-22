@@ -1,53 +1,43 @@
 import { NextResponse } from 'next/server'
-import { getQuote } from '@/lib/finnhub'
 
-const SYMBOLS = ['AAPL', 'NVDA', 'TSLA', 'AMZN', 'META', 'MSFT', 'AMD', 'GOOGL', 'JPM', 'SPY', 'QQQ', 'BRK.B']
+const FINNHUB_BASE = 'https://finnhub.io/api/v1'
+const API_KEY = process.env.FINNHUB_API_KEY!
 
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
+export const revalidate = 60 // 1 minute CDN cache shared across all instances
 
-// Cache 60 seconds — stale values preserved so tape never goes blank
-let cache: { data: unknown; ts: number } | null = null
+const SYMBOLS = [
+  'AAPL', 'NVDA', 'TSLA', 'AMZN', 'META',
+  'MSFT', 'AMD',  'GOOGL', 'JPM',  'SPY',
+  'QQQ',  'BRK.B',
+]
 
 export async function GET() {
-  const now = Date.now()
-  if (cache && now - cache.ts < 60_000) {
-    return NextResponse.json(cache.data)
+  if (!API_KEY) {
+    return NextResponse.json({ tickers: [] })
   }
 
-  try {
-    const tickers: { symbol: string; price: number; change: number; changePct: number; up: boolean }[] = []
+  const results = await Promise.allSettled(
+    SYMBOLS.map(async symbol => {
+      const res = await fetch(
+        `${FINNHUB_BASE}/quote?symbol=${symbol}&token=${API_KEY}`,
+        { next: { revalidate: 60 } }
+      )
+      if (!res.ok) return null
+      const q = await res.json()
+      if (!q?.c) return null
+      return {
+        symbol,
+        price: q.c,
+        change: q.d ?? 0,
+        changePct: q.dp ?? 0,
+        up: (q.dp ?? 0) >= 0,
+      }
+    })
+  )
 
-    // Sequential with 100ms gap — avoids burst rate-limit collisions with /api/sectors
-    for (const symbol of SYMBOLS) {
-      try {
-        const q = await getQuote(symbol)
-        if (q?.c) {
-          tickers.push({
-            symbol,
-            price: q.c,
-            change: q.d ?? 0,
-            changePct: q.dp ?? 0,
-            up: (q.dp ?? 0) >= 0,
-          })
-        }
-      } catch { /* skip this symbol */ }
-      await sleep(100)
-    }
+  const tickers = results
+    .filter(r => r.status === 'fulfilled' && r.value !== null)
+    .map(r => (r as PromiseFulfilledResult<NonNullable<{ symbol: string; price: number; change: number; changePct: number; up: boolean }>>).value)
 
-    // Only replace cache if we got meaningful data
-    if (tickers.length > 0) {
-      const payload = { tickers, ts: now }
-      cache = { data: payload, ts: now }
-      return NextResponse.json(payload)
-    }
-
-    // Return stale cache rather than empty
-    if (cache) return NextResponse.json(cache.data)
-    return NextResponse.json({ tickers: [], ts: now })
-  } catch {
-    if (cache) return NextResponse.json(cache.data)
-    return NextResponse.json({ tickers: [], ts: now })
-  }
+  return NextResponse.json({ tickers, ts: Date.now() })
 }

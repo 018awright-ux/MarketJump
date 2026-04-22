@@ -1,19 +1,35 @@
 import { NextResponse } from 'next/server'
-import { getMarketNews } from '@/lib/finnhub'
 
-// Cache 5 minutes
-let cache: { data: unknown; ts: number } | null = null
+const FINNHUB_BASE = 'https://finnhub.io/api/v1'
+const API_KEY = process.env.FINNHUB_API_KEY!
+
+// Next.js Data Cache — persists across ALL serverless instances on Vercel
+export const revalidate = 300 // 5 minutes
 
 export async function GET() {
-  const now = Date.now()
-  if (cache && now - cache.ts < 5 * 60_000) {
-    return NextResponse.json(cache.data)
+  if (!API_KEY) {
+    return NextResponse.json({ news: [] })
   }
 
   try {
-    const articles = await getMarketNews('general')
-    // Normalize and take top 15
-    const news = (articles ?? []).slice(0, 15).map((a: {
+    const res = await fetch(
+      `${FINNHUB_BASE}/news?category=general&token=${API_KEY}`,
+      { next: { revalidate: 300 } }
+    )
+
+    if (!res.ok) {
+      console.error('Finnhub news error:', res.status, res.statusText)
+      return NextResponse.json({ news: [] })
+    }
+
+    const articles = await res.json()
+
+    if (!Array.isArray(articles)) {
+      console.error('Finnhub news unexpected response:', typeof articles)
+      return NextResponse.json({ news: [] })
+    }
+
+    const news = articles.slice(0, 20).map((a: {
       id: number
       headline: string
       summary: string
@@ -29,14 +45,12 @@ export async function GET() {
       source: a.source,
       url: a.url,
       datetime: a.datetime,
-      image: a.image,
       related: a.related,
     }))
 
-    const payload = { news, ts: now }
-    cache = { data: payload, ts: now }
-    return NextResponse.json(payload)
-  } catch {
-    return NextResponse.json({ news: [], ts: now })
+    return NextResponse.json({ news, ts: Date.now() })
+  } catch (err) {
+    console.error('News route error:', err)
+    return NextResponse.json({ news: [] })
   }
 }
