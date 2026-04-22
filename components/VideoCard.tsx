@@ -254,23 +254,6 @@ export default function VideoCard({ post, onBullish, onBearish, onTrack, onJump,
         </button>
       </div>
 
-      {/* JUMP circle */}
-      <div className="flex justify-center pb-4">
-        <button
-          onClick={onJump}
-          className="w-20 h-20 rounded-full font-black text-sm tracking-widest transition-all active:scale-90 shadow-xl flex flex-col items-center justify-center gap-0.5"
-          style={{
-            background: 'linear-gradient(135deg, #1B3066 0%, #2a4a8a 50%, #C9A84C 100%)',
-            color: '#fff',
-            boxShadow: '0 0 24px rgba(201,168,76,0.35), 0 4px 20px rgba(0,0,0,0.5)',
-          }}
-        >
-          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          <span className="text-[9px] font-black tracking-widest">JUMP</span>
-        </button>
-      </div>
     </div>
   )
 }

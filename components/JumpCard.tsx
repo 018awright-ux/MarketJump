@@ -266,23 +266,6 @@ export default function JumpCard({
         </button>
       </div>
 
-      {/* JUMP circle button — the brand centerpiece */}
-      <div className="flex justify-center mt-3 mb-1">
-        <button
-          onClick={onJump}
-          className="w-24 h-24 rounded-full transition-all active:scale-90 flex flex-col items-center justify-center gap-1 animate-jump-pulse"
-          style={{
-            background: 'linear-gradient(135deg, #1B3066 0%, #2a4a8a 50%, #C9A84C 100%)',
-            color: '#fff',
-            boxShadow: '0 0 32px rgba(201,168,76,0.4), 0 0 64px rgba(27,48,102,0.3)',
-          }}
-        >
-          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          <span className="text-[10px] font-black tracking-widest">JUMP</span>
-        </button>
-      </div>
     </div>
   )
 }
