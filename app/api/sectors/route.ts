@@ -1,48 +1,97 @@
 import { NextResponse } from 'next/server'
-import { getQuote } from '@/lib/finnhub'
+
+const FINNHUB_BASE = 'https://finnhub.io/api/v1'
+const API_KEY = process.env.FINNHUB_API_KEY!
 
 const SECTOR_ETFS = [
-  { name: 'Tech', symbol: 'XLK' },
-  { name: 'Energy', symbol: 'XLE' },
-  { name: 'Healthcare', symbol: 'XLV' },
-  { name: 'Finance', symbol: 'XLF' },
-  { name: 'Crypto', symbol: 'BITO' },
+  { name: 'Tech',        symbol: 'XLK'  },
+  { name: 'Energy',      symbol: 'XLE'  },
+  { name: 'Healthcare',  symbol: 'XLV'  },
+  { name: 'Finance',     symbol: 'XLF'  },
+  { name: 'Crypto',      symbol: 'BITO' },
   { name: 'Real Estate', symbol: 'XLRE' },
-  { name: 'Consumer', symbol: 'XLY' },
-  { name: 'Industrials', symbol: 'XLI' },
-  { name: 'Commodities', symbol: 'GLD' },
+  { name: 'Consumer',    symbol: 'XLY'  },
+  { name: 'Industrials', symbol: 'XLI'  },
+  { name: 'Commodities', symbol: 'GLD'  },
 ]
 
-// Cache 60 seconds
-let cache: { data: unknown; ts: number } | null = null
+// 5-minute cache — stale values kept so the UI never shows dashes
+let cache: { data: SectorPayload; ts: number } | null = null
+
+interface SectorItem {
+  name: string
+  symbol: string
+  change: number | null
+  up: boolean
+}
+
+interface SectorPayload {
+  sectors: SectorItem[]
+  ts: number
+}
+
+async function fetchQuoteDp(symbol: string): Promise<number | null> {
+  try {
+    const res = await fetch(
+      `${FINNHUB_BASE}/quote?symbol=${symbol}&token=${API_KEY}`,
+      { cache: 'no-store' }
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    // dp = day percent change; treat 0 as valid data (flat day)
+    if (typeof data?.dp === 'number') return data.dp
+    return null
+  } catch {
+    return null
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
 
 export async function GET() {
   const now = Date.now()
-  if (cache && now - cache.ts < 60_000) {
+
+  // Return cached data immediately if fresh (5 min)
+  if (cache && now - cache.ts < 5 * 60_000) {
     return NextResponse.json(cache.data)
   }
 
-  try {
-    const results = await Promise.allSettled(
-      SECTOR_ETFS.map(async s => {
-        const q = await getQuote(s.symbol)
-        return {
-          name: s.name,
-          symbol: s.symbol,
-          change: q?.dp ?? null,
-          up: (q?.dp ?? 0) >= 0,
-        }
-      })
-    )
+  // Fetch sequentially with 120ms gap to stay well under Finnhub's 60 req/min free limit
+  const sectors: SectorItem[] = []
+  for (const etf of SECTOR_ETFS) {
+    const dp = await fetchQuoteDp(etf.symbol)
+    sectors.push({
+      name: etf.name,
+      symbol: etf.symbol,
+      change: dp,
+      up: (dp ?? 0) >= 0,
+    })
+    await sleep(120)
+  }
 
-    const sectors = results
-      .filter(r => r.status === 'fulfilled')
-      .map(r => (r as PromiseFulfilledResult<{ name: string; symbol: string; change: number | null; up: boolean }>).value)
-
-    const payload = { sectors, ts: now }
+  // Only fully replace cache if we got at least half the data
+  const populated = sectors.filter(s => s.change !== null)
+  if (populated.length >= Math.floor(SECTOR_ETFS.length / 2)) {
+    const payload: SectorPayload = { sectors, ts: now }
     cache = { data: payload, ts: now }
     return NextResponse.json(payload)
-  } catch {
-    return NextResponse.json({ sectors: [], ts: now })
   }
+
+  // Partial failure — merge new data over stale cache, keep stale values for failed symbols
+  if (cache) {
+    const merged = cache.data.sectors.map(old => {
+      const fresh = sectors.find(s => s.symbol === old.symbol)
+      return (fresh && fresh.change !== null) ? fresh : old
+    })
+    const payload: SectorPayload = { sectors: merged, ts: now }
+    cache = { data: payload, ts: now }
+    return NextResponse.json(payload)
+  }
+
+  // No cache at all and barely any data — return what we have
+  const payload: SectorPayload = { sectors, ts: now }
+  cache = { data: payload, ts: now }
+  return NextResponse.json(payload)
 }
