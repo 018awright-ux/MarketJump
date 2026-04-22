@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LevelBadge from '@/components/LevelBadge'
@@ -65,7 +65,7 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
-export default function PublicBrandPage() {
+function PublicBrandContent() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const supabase = createClient()
@@ -556,5 +556,17 @@ export default function PublicBrandPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function PublicBrandPage() {
+  return (
+    <Suspense fallback={
+      <div className="h-full flex items-center justify-center">
+        <div className="text-[#6b7280] text-sm animate-pulse">Loading brand...</div>
+      </div>
+    }>
+      <PublicBrandContent />
+    </Suspense>
   )
 }

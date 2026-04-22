@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { Suspense } from 'react'
 
 const NAV_ITEMS = [
   {
@@ -51,28 +52,45 @@ const NAV_ITEMS = [
   },
 ]
 
-export default function BottomNav() {
+function BottomNavInner() {
   const pathname = usePathname()
 
   return (
+    <div className="flex items-center justify-around py-2 px-2">
+      {NAV_ITEMS.map(item => {
+        const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors min-w-[56px]"
+          >
+            {item.icon(active)}
+            <span className={`text-[10px] font-medium ${active ? 'text-[#C9A84C]' : 'text-[#6b7280]'}`}>
+              {item.label}
+            </span>
+          </Link>
+        )
+      })}
+    </div>
+  )
+}
+
+export default function BottomNav() {
+  return (
     <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg backdrop-blur-xl border-t border-[#C9A84C]/20 safe-bottom z-50" style={{ background: 'rgba(8,12,20,0.96)' }}>
-      <div className="flex items-center justify-around py-2 px-2">
-        {NAV_ITEMS.map(item => {
-          const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors min-w-[56px]"
-            >
-              {item.icon(active)}
-              <span className={`text-[10px] font-medium ${active ? 'text-[#C9A84C]' : 'text-[#6b7280]'}`}>
-                {item.label}
-              </span>
-            </Link>
-          )
-        })}
-      </div>
+      <Suspense fallback={
+        <div className="flex items-center justify-around py-2 px-2">
+          {NAV_ITEMS.map(item => (
+            <div key={item.href} className="flex flex-col items-center gap-1 py-1 px-3 min-w-[56px]">
+              {item.icon(false)}
+              <span className="text-[10px] font-medium text-[#6b7280]">{item.label}</span>
+            </div>
+          ))}
+        </div>
+      }>
+        <BottomNavInner />
+      </Suspense>
     </nav>
   )
 }

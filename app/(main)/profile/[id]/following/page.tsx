@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LevelBadge from '@/components/LevelBadge'
@@ -15,7 +15,7 @@ interface FollowingProfile {
   market_score: number
 }
 
-export default function FollowingPage() {
+function FollowingContent() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const supabase = createClient()
@@ -117,5 +117,17 @@ export default function FollowingPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function FollowingPage() {
+  return (
+    <Suspense fallback={
+      <div className="h-full flex items-center justify-center" style={{ background: '#080c14' }}>
+        <div className="text-[#6b7280] text-sm animate-pulse">Loading...</div>
+      </div>
+    }>
+      <FollowingContent />
+    </Suspense>
   )
 }
