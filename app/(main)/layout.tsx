@@ -31,8 +31,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </Link>
       </div>
 
-      {/* pt-14 = top bar height, pb-20 = bottom nav */}
-      <main className="flex-1 overflow-hidden pb-20 pt-14 relative z-10">
+      {/* pt-14 = top bar height, pb-24 = bottom nav + clearance for JUMP button */}
+      <main className="flex-1 overflow-hidden pb-24 pt-14 relative z-10">
         {children}
       </main>
       <BottomNav />
