@@ -20,6 +20,7 @@ export default function ExpandedCard({
   card, level, onClose, onBullish, onBearish, onTrack, onJump, tracked = false
 }: ExpandedCardProps) {
   const [aiText, setAiText] = useState('')
+  const [aiError, setAiError] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const isPositive = (card.change_percent ?? 0) >= 0
   const hasPrice = card.price != null && card.card_type !== 'macro'
@@ -31,6 +32,7 @@ export default function ExpandedCard({
   async function fetchAI() {
     setAiLoading(true)
     setAiText('')
+    setAiError(null)
     try {
       const res = await fetch('/api/ai', {
         method: 'POST',
@@ -46,9 +48,13 @@ export default function ExpandedCard({
         }),
       })
       const data = await res.json()
-      setAiText(data.analysis || 'Analysis unavailable.')
+      if (data.analysis) {
+        setAiText(data.analysis)
+      } else {
+        setAiError(data.error ?? 'unavailable')
+      }
     } catch {
-      setAiText('Analysis unavailable.')
+      setAiError('unavailable')
     }
     setAiLoading(false)
   }
@@ -102,6 +108,23 @@ export default function ExpandedCard({
               <div className="h-3 bg-[#111827] rounded animate-pulse w-4/5" />
               <div className="h-3 bg-[#111827] rounded animate-pulse w-5/6" />
               <div className="h-3 bg-[#111827] rounded animate-pulse w-3/4" />
+            </div>
+          ) : aiError ? (
+            <div className="flex flex-col items-center gap-2 py-3 text-center">
+              <span className="text-2xl">⚡</span>
+              <p className="text-[#6b7280] text-xs leading-relaxed">
+                {aiError === 'no_key' || aiError === 'no_credits'
+                  ? 'AI analysis is being configured. Check back shortly.'
+                  : 'Analysis temporarily unavailable. Tap to retry.'}
+              </p>
+              {aiError !== 'no_key' && aiError !== 'no_credits' && (
+                <button
+                  onClick={fetchAI}
+                  className="text-[#C9A84C] text-xs font-bold border border-[#C9A84C]/30 px-3 py-1 rounded-full"
+                >
+                  Retry
+                </button>
+              )}
             </div>
           ) : (
             <p className="text-[#d1d5db] text-sm leading-relaxed whitespace-pre-wrap">{aiText}</p>

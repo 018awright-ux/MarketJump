@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
 const SYSTEM_PROMPTS: Record<string, string> = {
   rookie: `You are MarketJump's market analyst. The user is a ROOKIE investor learning the ropes.
 Rules:
@@ -53,6 +51,7 @@ function buildCardPrompt(body: {
     return `Ticker: ${ticker}
 Price change: ${changePercent ?? 0}%
 Headline: ${headline}
+Summary: ${summary}
 Source: ${source}
 User level: ${level}
 Generate a ${level}-appropriate market analysis of this stock movement. Keep it under 200 words.`
@@ -65,21 +64,27 @@ User level: ${level}
 Analyze the validity of this market opinion for a ${level} user. Keep it under 200 words.`
   }
 
-  // macro
   return `Headline: ${headline}
+Summary: ${summary}
 Event category: macro
 User level: ${level}
 Explain the market impact of this macro event for a ${level} user. Cover which sectors, currencies, and specific tickers may be affected. Keep it under 200 words.`
 }
 
 export async function POST(req: NextRequest) {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) {
+    console.error('ANTHROPIC_API_KEY not set')
+    return NextResponse.json({ analysis: null, error: 'no_key' }, { status: 503 })
+  }
+
   try {
     const body = await req.json()
     const userPrompt = buildCardPrompt(body)
-
     const levelKey = (body.level ?? 'rookie').toLowerCase()
     const systemPrompt = SYSTEM_PROMPTS[levelKey] ?? SYSTEM_PROMPTS.rookie
 
+    const client = new Anthropic({ apiKey })
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 400,
@@ -89,8 +94,15 @@ export async function POST(req: NextRequest) {
 
     const analysis = message.content[0].type === 'text' ? message.content[0].text : ''
     return NextResponse.json({ analysis })
-  } catch (err) {
-    console.error('AI route error:', err)
-    return NextResponse.json({ analysis: 'Analysis unavailable at this time.\n\nPublic information and opinion only. Not financial advice.' })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('AI route error:', message)
+
+    // Distinguish credit/auth errors from transient failures
+    const isAuthErr = message.includes('401') || message.includes('403') || message.includes('credit')
+    return NextResponse.json(
+      { analysis: null, error: isAuthErr ? 'no_credits' : 'unavailable' },
+      { status: isAuthErr ? 402 : 503 }
+    )
   }
 }

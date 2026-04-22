@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { MOCK_CARDS } from '@/lib/mock-data'
 import type { JumpCard, VideoPost } from '@/lib/types'
 
 interface WatchlistItem {
@@ -65,7 +64,7 @@ function TickerJumpPlayer({
           postsRes.json(),
         ])
 
-        const allCards: JumpCard[] = cardsData.cards ?? MOCK_CARDS
+        const allCards: JumpCard[] = cardsData.cards ?? []
         const allPosts: VideoPost[] = postsData.posts ?? []
 
         const tickerCards = allCards.filter(
@@ -83,15 +82,7 @@ function TickerJumpPlayer({
           if (tickerPosts[i]) merged.push({ kind: 'video', data: tickerPosts[i] })
         }
 
-        // If nothing specific to ticker, fall back to all mock cards for that ticker
-        if (merged.length === 0) {
-          const fallback = MOCK_CARDS.filter(
-            c => c.ticker.toUpperCase() === ticker.toUpperCase()
-          )
-          fallback.forEach(c => merged.push({ kind: 'card', data: c }))
-        }
-
-        // If still nothing, show all cards (so the player is never empty)
+        // If nothing for this ticker yet, show all cards so player is never empty
         if (merged.length === 0) {
           allCards.slice(0, 5).forEach(c => merged.push({ kind: 'card', data: c }))
         }
