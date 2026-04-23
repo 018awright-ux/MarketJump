@@ -438,6 +438,30 @@ export default function ExplorePage() {
               </div>
             </div>
 
+            {/* Sector Pulse — always above news */}
+            {sectors.length > 0 && (
+              <div className="mb-5">
+                <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Sector Pulse</div>
+                <div className="grid grid-cols-3 gap-2">
+                  {sectors.map(sector => (
+                    <div
+                      key={sector.name}
+                      className="rounded-xl p-3 text-center border"
+                      style={{
+                        background: sector.up ? 'rgba(0,200,5,0.08)' : 'rgba(255,59,48,0.08)',
+                        borderColor: sector.up ? 'rgba(0,200,5,0.2)' : 'rgba(255,59,48,0.2)',
+                      }}
+                    >
+                      <div className="text-xs text-[#9ca3af] mb-1">{sector.name}</div>
+                      <div className={`text-sm font-bold ${sector.up ? 'text-[#00C805]' : 'text-[#FF3B30]'}`}>
+                        {sector.change === null ? '—' : `${sector.up ? '+' : ''}${sector.change.toFixed(2)}%`}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* News for your stocks */}
             {watchlistNews.length > 0 && (
               <div className="mb-5">
@@ -470,30 +494,6 @@ export default function ExplorePage() {
                           <div className="h-full bg-[#00C805] rounded-full" style={{ width: `${card.bull_percent}%` }} />
                         </div>
                         <span className="text-[#FF3B30] text-[10px] font-bold">{card.bear_percent}% 🐻</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Sector Pulse — real ETF data */}
-            {sectors.length > 0 && (
-              <div className="mb-5">
-                <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Sector Pulse</div>
-                <div className="grid grid-cols-3 gap-2">
-                  {sectors.map(sector => (
-                    <div
-                      key={sector.name}
-                      className="rounded-xl p-3 text-center border"
-                      style={{
-                        background: sector.up ? 'rgba(0,200,5,0.08)' : 'rgba(255,59,48,0.08)',
-                        borderColor: sector.up ? 'rgba(0,200,5,0.2)' : 'rgba(255,59,48,0.2)',
-                      }}
-                    >
-                      <div className="text-xs text-[#9ca3af] mb-1">{sector.name}</div>
-                      <div className={`text-sm font-bold ${sector.up ? 'text-[#00C805]' : 'text-[#FF3B30]'}`}>
-                        {sector.change === null ? '—' : `${sector.up ? '+' : ''}${sector.change.toFixed(2)}%`}
                       </div>
                     </div>
                   ))}
