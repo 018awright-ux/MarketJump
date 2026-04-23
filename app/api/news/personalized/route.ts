@@ -25,8 +25,8 @@ type NewsArticle = {
   url: string; datetime: number; ticker?: string
 }
 
-// Revalidate via Vercel CDN Data Cache — shared across all serverless instances
-export const revalidate = 300
+// Must be dynamic — uses cookie-based auth (createClient reads cookies)
+export const dynamic = 'force-dynamic'
 
 async function fetchTickerNews(ticker: string): Promise<NewsArticle[]> {
   const to = new Date().toISOString().split('T')[0]
