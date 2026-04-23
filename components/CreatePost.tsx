@@ -236,7 +236,7 @@ export default function CreatePost({ onClose, onPosted }: CreatePostProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#080c14' }}>
+    <div className="fixed inset-0 z-[200] flex flex-col" style={{ background: '#080c14' }}>
 
       {/* Header */}
       <div
@@ -467,7 +467,7 @@ export default function CreatePost({ onClose, onPosted }: CreatePostProps) {
 
       {/* Upload overlay */}
       {uploading && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4"
+        <div className="absolute inset-0 z-[210] flex flex-col items-center justify-center gap-4"
           style={{ background: 'rgba(4,7,13,0.95)' }}>
           <div className="w-20 h-20 rounded-full flex items-center justify-center"
             style={{ background: 'linear-gradient(135deg, #1B3066, #2a4a8a)', border: '3px solid rgba(201,168,76,0.4)' }}>
