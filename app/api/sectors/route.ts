@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { cacheLife } from 'next/cache'
 
 const FINNHUB_BASE = 'https://finnhub.io/api/v1'
 const API_KEY = process.env.FINNHUB_API_KEY!
@@ -19,13 +18,15 @@ const SECTOR_ETFS = [
   { name: 'Commodities', symbol: 'GLD'  },
 ]
 
-// Cached per-symbol — persists across serverless instances
-// Cache key = symbol argument; revalidates every 5 minutes
+// Revalidate cached across Vercel CDN Data Cache — shared across all serverless instances
+export const revalidate = 300
+
 async function fetchDp(symbol: string): Promise<number | null> {
-  'use cache'
-  cacheLife({ revalidate: 300, stale: 300, expire: 3600 })
   try {
-    const res = await fetch(`${FINNHUB_BASE}/quote?symbol=${symbol}&token=${API_KEY}`)
+    const res = await fetch(
+      `${FINNHUB_BASE}/quote?symbol=${symbol}&token=${API_KEY}`,
+      { next: { revalidate: 300 } }
+    )
     if (!res.ok) return null
     const data = await res.json()
     return typeof data?.dp === 'number' ? data.dp : null

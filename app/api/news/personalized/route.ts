@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { cacheLife } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
 const FINNHUB_BASE = 'https://finnhub.io/api/v1'
@@ -18,8 +17,7 @@ const INTEREST_KEYWORDS: Record<string, string[]> = {
   'Index Funds': ['s&p 500', 'spy', 'qqq', 'dow jones', 'nasdaq', 'index fund', 'etf', 'iwm', 'vti', 'russell'],
 }
 
-// Same 10 tickers as /api/news — shares the 'use cache' function-level cache
-// so no duplicate Finnhub calls when both routes are fetched on the same page load
+// Same 10 tickers as /api/news
 const MARKET_TICKERS = ['AAPL', 'NVDA', 'TSLA', 'AMZN', 'META', 'MSFT', 'AMD', 'JPM', 'SPY', 'GOOGL']
 
 type NewsArticle = {
@@ -27,19 +25,17 @@ type NewsArticle = {
   url: string; datetime: number; ticker?: string
 }
 
-// Cached per-ticker — same function signature as /api/news/route.ts fetchTickerNews
-// Next.js 'use cache' keys by (function identity + args), so these are separate caches
-// but both benefit from the same 300s revalidation and serverless persistence
-async function fetchTickerNews(ticker: string): Promise<NewsArticle[]> {
-  'use cache'
-  cacheLife({ revalidate: 300, stale: 300, expire: 7200 })
+// Revalidate via Vercel CDN Data Cache — shared across all serverless instances
+export const revalidate = 300
 
+async function fetchTickerNews(ticker: string): Promise<NewsArticle[]> {
   const to = new Date().toISOString().split('T')[0]
   const from = new Date(Date.now() - 7 * 86400_000).toISOString().split('T')[0]
 
   try {
     const res = await fetch(
-      `${FINNHUB_BASE}/company-news?symbol=${ticker}&from=${from}&to=${to}&token=${API_KEY}`
+      `${FINNHUB_BASE}/company-news?symbol=${ticker}&from=${from}&to=${to}&token=${API_KEY}`,
+      { next: { revalidate: 300 } }
     )
     if (!res.ok) return []
     const data = await res.json()
@@ -50,17 +46,14 @@ async function fetchTickerNews(ticker: string): Promise<NewsArticle[]> {
   }
 }
 
-// Cached per-watchlist-ticker — for user-specific watchlist news
 async function fetchWatchlistNews(ticker: string): Promise<NewsArticle[]> {
-  'use cache'
-  cacheLife({ revalidate: 300, stale: 300, expire: 7200 })
-
   const to = new Date().toISOString().split('T')[0]
   const from = new Date(Date.now() - 7 * 86400_000).toISOString().split('T')[0]
 
   try {
     const res = await fetch(
-      `${FINNHUB_BASE}/company-news?symbol=${ticker}&from=${from}&to=${to}&token=${API_KEY}`
+      `${FINNHUB_BASE}/company-news?symbol=${ticker}&from=${from}&to=${to}&token=${API_KEY}`,
+      { next: { revalidate: 300 } }
     )
     if (!res.ok) return []
     const data = await res.json()
@@ -87,7 +80,7 @@ export async function GET() {
 
   const tickersToFetch = watchlistTickers.slice(0, 5)
 
-  // Fetch in parallel — all calls use 'use cache' so results are shared across instances
+  // Fetch in parallel — all calls use Vercel CDN Data Cache via { next: { revalidate } }
   const [watchlistResults, marketResults, cardsRes] = await Promise.all([
     Promise.allSettled(tickersToFetch.map(fetchWatchlistNews)),
     Promise.allSettled(MARKET_TICKERS.map(fetchTickerNews)),

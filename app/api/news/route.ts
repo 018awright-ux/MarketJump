@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { cacheLife } from 'next/cache'
 
 const FINNHUB_BASE = 'https://finnhub.io/api/v1'
 const API_KEY = process.env.FINNHUB_API_KEY!
@@ -13,18 +12,17 @@ type RawArticle = {
   source: string; url: string; datetime: number
 }
 
-// Cached per-ticker — persists across serverless instances
-// Date range is computed inside so the cache key is just the ticker name
-async function fetchTickerNews(ticker: string): Promise<Array<RawArticle & { ticker: string }>> {
-  'use cache'
-  cacheLife({ revalidate: 300, stale: 300, expire: 7200 })
+// Revalidate via Vercel CDN Data Cache — shared across all serverless instances
+export const revalidate = 300
 
+async function fetchTickerNews(ticker: string): Promise<Array<RawArticle & { ticker: string }>> {
   const to = new Date().toISOString().split('T')[0]
   const from = new Date(Date.now() - 5 * 86400_000).toISOString().split('T')[0]
 
   try {
     const res = await fetch(
-      `${FINNHUB_BASE}/company-news?symbol=${ticker}&from=${from}&to=${to}&token=${API_KEY}`
+      `${FINNHUB_BASE}/company-news?symbol=${ticker}&from=${from}&to=${to}&token=${API_KEY}`,
+      { next: { revalidate: 300 } }
     )
     if (!res.ok) return []
     const data = await res.json()
