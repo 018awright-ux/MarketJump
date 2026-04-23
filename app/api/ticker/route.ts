@@ -45,7 +45,7 @@ const getCachedTickers = unstable_cache(
       .filter(r => r.status === 'fulfilled' && r.value !== null)
       .map(r => (r as PromiseFulfilledResult<NonNullable<Awaited<ReturnType<typeof fetchQuote>>>>).value)
   },
-  ['tickers-v1'],
+  ['tickers-v2'],
   { revalidate: 60 }
 )
 

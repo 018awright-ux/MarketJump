@@ -54,7 +54,7 @@ const getCachedNews = unstable_cache(
       .sort((a, b) => b.datetime - a.datetime)
       .slice(0, 20)
   },
-  ['market-news-v1'],
+  ['market-news-v2'],
   { revalidate: 300 }
 )
 

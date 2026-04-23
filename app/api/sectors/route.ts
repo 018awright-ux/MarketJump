@@ -60,7 +60,7 @@ const getCachedSectors = unstable_cache(
       .filter(r => r.status === 'fulfilled')
       .map(r => (r as PromiseFulfilledResult<{ name: string; symbol: string; change: number | null; up: boolean }>).value)
   },
-  ['sectors-v1'],
+  ['sectors-v2'],
   { revalidate: 300 }
 )
 
