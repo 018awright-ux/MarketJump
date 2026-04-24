@@ -7,10 +7,20 @@ import { Suspense } from 'react'
 const NAV_ITEMS = [
   {
     href: '/explore',
-    label: 'Explore',
+    label: 'Markets',
     icon: (active: boolean) => (
-      <svg className={`w-6 h-6 ${active ? 'text-[#C9A84C]' : 'text-[#6b7280]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 2.5 : 2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      <svg className={`w-6 h-6 ${active ? 'text-[#C9A84C]' : 'text-[#6b7280]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+        {/* Candlestick wicks */}
+        <line x1="5"  y1="3"  x2="5"  y2="6"  strokeWidth={active ? 2.5 : 2} />
+        <line x1="5"  y1="13" x2="5"  y2="18" strokeWidth={active ? 2.5 : 2} />
+        <line x1="12" y1="2"  x2="12" y2="5"  strokeWidth={active ? 2.5 : 2} />
+        <line x1="12" y1="14" x2="12" y2="19" strokeWidth={active ? 2.5 : 2} />
+        <line x1="19" y1="4"  x2="19" y2="8"  strokeWidth={active ? 2.5 : 2} />
+        <line x1="19" y1="16" x2="19" y2="20" strokeWidth={active ? 2.5 : 2} />
+        {/* Candlestick bodies */}
+        <rect x="3"  y="6"  width="4" height="7"  rx="0.5" strokeWidth={active ? 2.5 : 2} />
+        <rect x="10" y="5"  width="4" height="9"  rx="0.5" strokeWidth={active ? 2.5 : 2} />
+        <rect x="17" y="8"  width="4" height="8"  rx="0.5" strokeWidth={active ? 2.5 : 2} />
       </svg>
     ),
   },

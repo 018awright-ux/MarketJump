@@ -85,6 +85,7 @@ export default function ExplorePage() {
   const [newsTab, setNewsTab] = useState<'yours' | 'market'>('yours')
   const [trackedTickers, setTrackedTickers] = useState<Set<string>>(new Set())
   const [commentTarget, setCommentTarget] = useState<{ url: string; title: string } | null>(null)
+  const [companyNames, setCompanyNames] = useState<Record<string, string>>({})
 
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -113,7 +114,12 @@ export default function ExplorePage() {
       if (user) {
         supabase.from('watchlist').select('ticker').eq('user_id', user.id)
           .then(({ data }) => {
-            if (data) setTrackedTickers(new Set(data.map((w: { ticker: string }) => w.ticker)))
+            if (data) {
+              const tickers = data.map((w: { ticker: string }) => w.ticker)
+              setTrackedTickers(new Set(tickers))
+              // Batch-fetch company names for watchlist tickers
+              if (tickers.length) fetchCompanyNames(tickers)
+            }
           })
       }
 
@@ -130,6 +136,9 @@ export default function ExplorePage() {
         .then(r => r.json())
         .then(d => { if (d.sectors?.length > 0) setSectors(d.sectors) })
         .catch(() => {})
+
+      // Pre-fetch company names for trending tickers
+      fetchCompanyNames(TRENDING)
 
       if (user) {
         // Load personalized feed
@@ -197,17 +206,51 @@ export default function ExplorePage() {
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
         const data = await res.json()
-        setResults(data.results ?? [])
+        const hits: SearchResult[] = data.results ?? []
+        setResults(hits)
+        // Cache company names from search results
+        if (hits.length) {
+          setCompanyNames(prev => {
+            const next = { ...prev }
+            for (const r of hits) if (r.description && !next[r.symbol]) next[r.symbol] = r.description
+            return next
+          })
+        }
       } catch { setResults([]) }
       setSearching(false)
     }, 400)
   }, [query, searchMode])
 
+  async function fetchCompanyNames(tickers: string[]) {
+    if (!tickers.length) return
+    try {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('jump_cards')
+        .select('ticker, company_name')
+        .in('ticker', tickers)
+        .not('company_name', 'is', null)
+      if (data) {
+        setCompanyNames(prev => {
+          const next = { ...prev }
+          for (const row of data as { ticker: string; company_name: string }[]) {
+            if (row.company_name && !next[row.ticker]) next[row.ticker] = row.company_name
+          }
+          return next
+        })
+      }
+    } catch {}
+  }
+
   async function loadStock(ticker: string) {
+    // Scroll to top so the stock panel is visible immediately
+    ptr.scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
     setLoadingStock(true)
     setQuery('')
     setResults([])
     setCardIndex(0)
+    // Fetch company name if not already known
+    if (!companyNames[ticker]) fetchCompanyNames([ticker])
     try {
       const supabase = createClient()
       const [stockRes, { data: dbCards }] = await Promise.all([
@@ -302,7 +345,7 @@ export default function ExplorePage() {
         />
       )}
       <div className="px-5 pt-4 pb-3">
-        <h1 className="text-xl font-black text-white mb-3">Explore</h1>
+        <h1 className="text-xl font-black text-white mb-3">Markets</h1>
 
         {/* Search */}
         <div className="relative">
@@ -391,7 +434,12 @@ export default function ExplorePage() {
                 <>
                   <div className="flex items-center justify-between p-4 border-b border-[#1e2d4a]">
                     <div>
-                      <div className="text-2xl font-black text-white">{stockData.ticker}</div>
+                      <div className="flex items-baseline gap-2">
+                        <div className="text-2xl font-black text-white">{stockData.ticker}</div>
+                        {companyNames[stockData.ticker] && (
+                          <div className="text-[#6b7280] text-sm truncate max-w-[140px]">{companyNames[stockData.ticker]}</div>
+                        )}
+                      </div>
                       {stockData.quote && (
                         <div className={`text-sm font-bold ${isUp ? 'text-[#00C805]' : 'text-[#FF3B30]'}`}>
                           ${stockData.quote.c?.toFixed(2)} ({isUp ? '+' : ''}{stockData.quote.dp?.toFixed(2)}%)
@@ -475,20 +523,22 @@ export default function ExplorePage() {
             {/* Watchlist quick chips */}
             {watchlistTickers.length > 0 && (
               <div className="mb-5">
-                <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Your Watchlist</div>
+                <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Your Tracklist</div>
                 <div className="flex flex-wrap gap-2">
                   {watchlistTickers.map(ticker => (
                     <button
                       key={ticker}
                       onClick={() => loadStock(ticker)}
-                      className="px-4 py-2 rounded-xl border text-sm font-bold transition-all active:scale-95"
+                      className="flex flex-col items-start px-3 py-2 rounded-xl border transition-all active:scale-95"
                       style={{
                         background: stockData?.ticker === ticker ? 'rgba(201,168,76,0.15)' : 'rgba(13,20,34,0.8)',
                         borderColor: stockData?.ticker === ticker ? 'rgba(201,168,76,0.5)' : 'rgba(30,45,74,0.8)',
-                        color: stockData?.ticker === ticker ? '#C9A84C' : '#fff',
                       }}
                     >
-                      {ticker}
+                      <span className="text-sm font-bold" style={{ color: stockData?.ticker === ticker ? '#C9A84C' : '#fff' }}>{ticker}</span>
+                      {companyNames[ticker] && (
+                        <span className="text-[9px] text-[#6b7280] truncate max-w-[72px]">{companyNames[ticker]}</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -505,14 +555,16 @@ export default function ExplorePage() {
                   <button
                     key={ticker}
                     onClick={() => loadStock(ticker)}
-                    className="px-4 py-2 rounded-xl border text-sm font-bold transition-all active:scale-95"
+                    className="flex flex-col items-start px-3 py-2 rounded-xl border transition-all active:scale-95"
                     style={{
                       background: stockData?.ticker === ticker ? 'rgba(201,168,76,0.15)' : 'rgba(13,20,34,0.8)',
                       borderColor: stockData?.ticker === ticker ? 'rgba(201,168,76,0.5)' : 'rgba(30,45,74,0.8)',
-                      color: stockData?.ticker === ticker ? '#C9A84C' : '#fff',
                     }}
                   >
-                    {ticker}
+                    <span className="text-sm font-bold" style={{ color: stockData?.ticker === ticker ? '#C9A84C' : '#fff' }}>{ticker}</span>
+                    {companyNames[ticker] && (
+                      <span className="text-[9px] text-[#6b7280] truncate max-w-[72px]">{companyNames[ticker]}</span>
+                    )}
                   </button>
                 ))}
               </div>

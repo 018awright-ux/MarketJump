@@ -480,16 +480,26 @@ export default function FeedPage() {
               <span className="text-[8px] font-bold text-[#6b7280]">Back</span>
             </button>
 
-            <button
-              onClick={() => setShowComments(true)}
-              className="w-11 h-11 rounded-2xl flex flex-col items-center justify-center gap-0.5 active:scale-90 transition-all"
-              style={{ background: 'rgba(30,45,74,0.6)', border: '1px solid rgba(30,45,74,0.8)' }}
-            >
-              <svg className="w-4 h-4 text-[#6b7280]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              <span className="text-[8px] font-bold text-[#6b7280]">Chat</span>
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowComments(true)}
+                className="w-11 h-11 rounded-2xl flex flex-col items-center justify-center gap-0.5 active:scale-90 transition-all"
+                style={{ background: 'rgba(30,45,74,0.6)', border: '1px solid rgba(30,45,74,0.8)' }}
+              >
+                <svg className="w-4 h-4 text-[#6b7280]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <span className="text-[8px] font-bold text-[#6b7280]">Chat</span>
+              </button>
+              {currentItem.kind === 'video' && (currentItem.data.comment_count ?? 0) > 0 && (
+                <span
+                  className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 rounded-full flex items-center justify-center text-[9px] font-black pointer-events-none"
+                  style={{ background: '#C9A84C', color: '#000' }}
+                >
+                  {(currentItem.data.comment_count ?? 0) > 99 ? '99+' : currentItem.data.comment_count}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Center: pulsating JUMP circle — the core feature */}

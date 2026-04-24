@@ -126,6 +126,42 @@ export default function VideoCard({ post, onBullish, onBearish, onDeleted, userI
     }
   }
 
+  // Fixed-position overlay so the card's touch-none / swipe handlers don't eat button taps
+  function DeleteConfirmOverlay() {
+    return (
+      <div
+        className="fixed inset-0 z-[200] flex flex-col items-center justify-end"
+        style={{ background: 'rgba(0,0,0,0.75)' }}
+        onClick={() => setShowDeleteConfirm(false)}
+      >
+        <div
+          className="w-full max-w-lg px-5 pb-10 pt-6 flex flex-col gap-3 rounded-t-3xl"
+          style={{ background: '#0d1422', borderTop: '1px solid rgba(201,168,76,0.2)' }}
+          onClick={e => e.stopPropagation()}
+        >
+          <p className="text-white font-bold text-center text-base">Delete this post?</p>
+          <p className="text-[#6b7280] text-xs text-center">This can&apos;t be undone.</p>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="w-full py-3 rounded-2xl font-black text-white text-sm active:scale-95 transition-all disabled:opacity-50"
+            style={{ background: '#FF3B30' }}
+          >
+            {deleting ? 'Deleting…' : 'Yes, Delete'}
+          </button>
+          <button
+            onClick={() => setShowDeleteConfirm(false)}
+            disabled={deleting}
+            className="w-full py-3 rounded-2xl font-bold text-[#6b7280] text-sm active:scale-95 transition-all"
+            style={{ background: 'rgba(30,45,74,0.6)', border: '1px solid rgba(30,45,74,0.8)' }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const isOwner = userId && post.user_id && userId === post.user_id
   const isUp = post.stance === 'bullish'
   const isDown = post.stance === 'bearish'
@@ -154,33 +190,8 @@ export default function VideoCard({ post, onBullish, onBearish, onDeleted, userI
         onMouseUp={handleSwipeEnd}
         onMouseLeave={handleSwipeEnd}
       >
-        {/* Delete confirm overlay — text card */}
-        {showDeleteConfirm && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-end rounded-3xl overflow-hidden"
-            style={{ background: 'rgba(8,12,20,0.85)', backdropFilter: 'blur(6px)' }}>
-            <div className="w-full px-5 pb-8 pt-6 flex flex-col gap-3"
-              style={{ background: '#0d1422', borderTop: '1px solid rgba(201,168,76,0.2)' }}>
-              <p className="text-white font-bold text-center text-base">Delete this post?</p>
-              <p className="text-[#6b7280] text-xs text-center">This can&apos;t be undone.</p>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="w-full py-3 rounded-2xl font-black text-white text-sm active:scale-95 transition-all disabled:opacity-50"
-                style={{ background: '#FF3B30' }}
-              >
-                {deleting ? 'Deleting…' : 'Yes, Delete'}
-              </button>
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                disabled={deleting}
-                className="w-full py-3 rounded-2xl font-bold text-[#6b7280] text-sm active:scale-95 transition-all"
-                style={{ background: 'rgba(30,45,74,0.6)', border: '1px solid rgba(30,45,74,0.8)' }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Delete confirm — fixed overlay so card touch handlers don't interfere */}
+        {showDeleteConfirm && <DeleteConfirmOverlay />}
 
         {/* Swipe overlays */}
         {isDragging && dragX > 30 && (

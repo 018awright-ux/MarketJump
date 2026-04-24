@@ -102,6 +102,7 @@ export default function BrandPage() {
   const [editStance, setEditStance]     = useState<'bullish' | 'bearish' | 'neutral'>('neutral')
   const [savingPost, setSavingPost]     = useState(false)
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const ptr = usePullToRefresh(async () => { await loadBrand() })
 
   // Live countdown to next Friday score update
@@ -845,7 +846,7 @@ export default function BrandPage() {
                           </button>
                           <div className="border-t border-[#1e2d4a]" />
                           <button
-                            onClick={e => { e.stopPropagation(); handleDeletePost(post.id) }}
+                            onClick={e => { e.stopPropagation(); setPostMenuId(null); setConfirmDeleteId(post.id) }}
                             disabled={deletingPostId === post.id}
                             className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-[#FF3B30] hover:bg-[#FF3B30]/10 transition-colors text-left disabled:opacity-50"
                           >
@@ -919,7 +920,7 @@ export default function BrandPage() {
                   ✏️ Edit
                 </button>
                 <button
-                  onClick={() => { handleDeletePost(vp.id); setViewingPost(null) }}
+                  onClick={() => { setViewingPost(null); setConfirmDeleteId(vp.id) }}
                   className="px-3 py-1.5 rounded-xl text-xs font-bold border border-[#FF3B30]/30 text-[#FF3B30]"
                   style={{ background: 'rgba(255,59,48,0.08)' }}
                 >
@@ -1122,6 +1123,39 @@ export default function BrandPage() {
               style={{ background: 'linear-gradient(135deg, #C9A84C, #e8c96d)' }}
             >
               {savingPost ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirm sheet */}
+      {confirmDeleteId && (
+        <div
+          className="fixed inset-0 z-[70] flex flex-col items-center justify-end"
+          style={{ background: 'rgba(0,0,0,0.7)' }}
+          onClick={() => setConfirmDeleteId(null)}
+        >
+          <div
+            className="w-full max-w-lg px-5 pb-10 pt-6 flex flex-col gap-3 rounded-t-3xl"
+            style={{ background: '#0d1422', borderTop: '1px solid rgba(201,168,76,0.2)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <p className="text-white font-bold text-center text-base">Delete this post?</p>
+            <p className="text-[#6b7280] text-xs text-center">This can&apos;t be undone.</p>
+            <button
+              onClick={() => { handleDeletePost(confirmDeleteId); setConfirmDeleteId(null) }}
+              disabled={!!deletingPostId}
+              className="w-full py-3 rounded-2xl font-black text-white text-sm active:scale-95 transition-all disabled:opacity-50"
+              style={{ background: '#FF3B30' }}
+            >
+              {deletingPostId ? 'Deleting…' : 'Yes, Delete'}
+            </button>
+            <button
+              onClick={() => setConfirmDeleteId(null)}
+              className="w-full py-3 rounded-2xl font-bold text-[#6b7280] text-sm active:scale-95 transition-all"
+              style={{ background: 'rgba(30,45,74,0.6)', border: '1px solid rgba(30,45,74,0.8)' }}
+            >
+              Cancel
             </button>
           </div>
         </div>
