@@ -45,9 +45,17 @@ export default function VideoCard({ post, onBullish, onBearish }: VideoCardProps
   function handleSwipeMove(x: number) { if (isDragging) setDragX(x - swipeStartX.current) }
   function handleSwipeEnd() {
     setIsDragging(false)
-    if (dragX > 80) { setSwipeDir('right'); setTimeout(() => { setSwipeDir(null); setDragX(0); onBullish() }, 380) }
-    else if (dragX < -80) { setSwipeDir('left'); setTimeout(() => { setSwipeDir(null); setDragX(0); onBearish() }, 380) }
-    else setDragX(0)
+    if (dragX > 80) {
+      // Swipe right: navigate to previous clip if available, otherwise bullish
+      if (total > 1 && clipIndex > 0) { setDragX(0); goClip(clipIndex - 1) }
+      else { setSwipeDir('right'); setTimeout(() => { setSwipeDir(null); setDragX(0); onBullish() }, 380) }
+    } else if (dragX < -80) {
+      // Swipe left: navigate to next clip if available, otherwise bearish
+      if (total > 1 && clipIndex < total - 1) { setDragX(0); goClip(clipIndex + 1) }
+      else { setSwipeDir('left'); setTimeout(() => { setSwipeDir(null); setDragX(0); onBearish() }, 380) }
+    } else {
+      setDragX(0)
+    }
   }
 
   useEffect(() => {
@@ -250,10 +258,14 @@ export default function VideoCard({ post, onBullish, onBearish }: VideoCardProps
         className="relative flex-1 bg-black min-h-0"
         onClick={e => {
           e.stopPropagation()
-          if (!isDragging && currentClip?.media_type !== 'image') togglePlay()
-          // Images: tapping navigates to next clip
-          if (!isDragging && currentClip?.media_type === 'image' && total > 1) {
-            goClip((clipIndex + 1) % total)
+          if (isDragging) return
+          if (currentClip?.media_type === 'image' && total > 1) {
+            // Tap left half = prev clip, tap right half = next clip (Stories-style)
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+            const x = e.clientX - rect.left
+            goClip(x < rect.width / 2 ? Math.max(0, clipIndex - 1) : Math.min(total - 1, clipIndex + 1))
+          } else if (currentClip?.media_type !== 'image') {
+            togglePlay()
           }
         }}
       >

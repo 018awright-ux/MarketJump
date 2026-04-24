@@ -430,7 +430,7 @@ export default function FeedPage() {
         </div>
 
         {/* ── CARD AREA — flex-1, no overflow ── */}
-        <div className="flex-1 px-4 min-h-0">
+        <div className="flex-1 px-4 pb-1 min-h-0 flex flex-col overflow-hidden">
           {currentItem.kind === 'video' ? (
             <VideoCard
               key={currentItem.data.id}
