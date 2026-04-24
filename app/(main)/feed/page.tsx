@@ -70,8 +70,6 @@ function getSavedFilter(): FeedFilter {
 }
 
 export default function FeedPage() {
-  const supabase = createClient()
-
   // Read filter synchronously so it's available to all lazy initialisers
   const initialFilter = getSavedFilter()
 
@@ -112,6 +110,7 @@ export default function FeedPage() {
 
   useEffect(() => {
     async function init() {
+      const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         setUserId(user.id)
@@ -274,11 +273,13 @@ export default function FeedPage() {
 
   async function handleVote(postId: string, vote: 'bullish' | 'bearish') {
     if (!userId) return
+    const supabase = createClient()
     await supabase.from('post_votes').upsert({ user_id: userId, post_id: postId, vote })
   }
 
   async function handleTrack() {
     if (!userId || !currentItem) return
+    const supabase = createClient()
     const ticker = currentItem.data.ticker
     if (tracked.has(ticker)) {
       await supabase.from('watchlist').delete().eq('user_id', userId).eq('ticker', ticker)
