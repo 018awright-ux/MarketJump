@@ -612,9 +612,9 @@ export default function FeedPage() {
             setCommentCounts(prev => ({ ...prev, [itemId]: (prev[itemId] ?? 0) + 1 }))
             // Also update comment_count in feed array for video posts (persists across navigations)
             if (item.kind === 'video') {
-              setFeed(prev => prev.map((fi, i) => {
-                if (i !== currentIndex) return fi
-                return { ...fi, data: { ...fi.data, comment_count: (fi.data.comment_count ?? 0) + 1 } }
+              setFeed(prev => prev.map((fi, i): FeedItem => {
+                if (i !== currentIndex || fi.kind !== 'video') return fi
+                return { kind: 'video' as const, data: { ...fi.data, comment_count: (fi.data.comment_count ?? 0) + 1 } }
               }))
             }
           }}
