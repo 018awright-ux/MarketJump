@@ -342,7 +342,7 @@ export default function VideoCard({ post, onBullish, onBearish }: VideoCardProps
 
         {/* Clip progress bars — one per clip */}
         {total > 1 && (
-          <div className="absolute top-10 left-3 right-3 flex gap-1">
+          <div className="absolute top-10 left-3 right-3 flex gap-1" onTouchStart={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}>
             {clips.map((_, i) => (
               <button key={i} className="flex-1 h-0.5 rounded-full overflow-hidden bg-white/20" onClick={e => { e.stopPropagation(); goClip(i) }}>
                 <div
@@ -356,10 +356,33 @@ export default function VideoCard({ post, onBullish, onBearish }: VideoCardProps
           </div>
         )}
 
-        {/* Single clip progress */}
-        {total === 1 && (
-          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/20">
-            <div className="h-full bg-[#C9A84C] transition-all" style={{ width: `${progress * 100}%` }} />
+        {/* TikTok-style seekable progress bar — single clip */}
+        {total === 1 && currentClip?.media_type !== 'image' && (
+          <div
+            className="absolute bottom-0 left-0 right-0 h-2 bg-white/20 cursor-pointer z-20"
+            onClick={e => {
+              e.stopPropagation()
+              const rect = e.currentTarget.getBoundingClientRect()
+              const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+              if (videoRef.current && videoRef.current.duration) {
+                videoRef.current.currentTime = ratio * videoRef.current.duration
+                setProgress(ratio)
+              }
+            }}
+            onTouchStart={e => e.stopPropagation()}
+            onTouchMove={e => {
+              e.stopPropagation()
+              const touch = e.touches[0]
+              const rect = e.currentTarget.getBoundingClientRect()
+              const ratio = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width))
+              if (videoRef.current && videoRef.current.duration) {
+                videoRef.current.currentTime = ratio * videoRef.current.duration
+                setProgress(ratio)
+              }
+            }}
+            onMouseDown={e => e.stopPropagation()}
+          >
+            <div className="h-full bg-white rounded-full" style={{ width: `${progress * 100}%`, transition: 'none' }} />
           </div>
         )}
 

@@ -3,7 +3,11 @@
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 
-export default function AIButton() {
+interface AIButtonProps {
+  inline?: boolean
+}
+
+export default function AIButton({ inline = false }: AIButtonProps) {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
 
@@ -12,31 +16,51 @@ export default function AIButton() {
 
   return (
     <>
-      {/* Floating AI button — bottom-right, above BottomNav */}
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed z-[100] flex items-center justify-center rounded-full shadow-lg active:scale-90 transition-all"
-        style={{
-          right: '16px',
-          // On feed: float above the ~74px action bar; elsewhere: just above BottomNav
-          bottom: isOnFeed
-            ? 'calc(env(safe-area-inset-bottom, 0px) + 160px)'
-            : 'calc(env(safe-area-inset-bottom, 0px) + 80px)',
-          width: '48px',
-          height: '48px',
-          background: 'linear-gradient(135deg, #1B3066 0%, #6d28d9 100%)',
-          boxShadow: '0 0 18px rgba(109,40,217,0.55), 0 4px 12px rgba(0,0,0,0.4)',
-          border: '1.5px solid rgba(109,40,217,0.4)',
-        }}
-        aria-label="AI Assistant"
-      >
-        {/* Sparkle / AI icon */}
-        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 2l1.09 3.26L16 6.5l-2.91 1.24L12 11l-1.09-3.26L8 6.5l2.91-1.24L12 2z" />
-          <path d="M19 14l.73 2.18L22 17l-2.27.82L19 20l-.73-2.18L16 17l2.27-.82L19 14z" />
-          <path d="M5 14l.73 2.18L8 17l-2.27.82L5 20l-.73-2.18L2 17l2.27-.82L5 14z" />
-        </svg>
-      </button>
+      {inline ? (
+        /* Inline header button — no fixed positioning */
+        <button
+          onClick={() => setOpen(true)}
+          className="w-9 h-9 flex items-center justify-center rounded-xl active:scale-90 transition-all hover:bg-white/5 active:bg-white/10"
+          style={{
+            background: 'linear-gradient(135deg, #1B3066 0%, #6d28d9 100%)',
+            boxShadow: '0 0 10px rgba(109,40,217,0.4)',
+            border: '1.5px solid rgba(109,40,217,0.4)',
+          }}
+          aria-label="AI Assistant"
+        >
+          <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2l1.09 3.26L16 6.5l-2.91 1.24L12 11l-1.09-3.26L8 6.5l2.91-1.24L12 2z" />
+            <path d="M19 14l.73 2.18L22 17l-2.27.82L19 20l-.73-2.18L16 17l2.27-.82L19 14z" />
+            <path d="M5 14l.73 2.18L8 17l-2.27.82L5 20l-.73-2.18L2 17l2.27-.82L5 14z" />
+          </svg>
+        </button>
+      ) : (
+        /* Floating AI button — bottom-right, above BottomNav */
+        <button
+          onClick={() => setOpen(true)}
+          className="fixed z-[100] flex items-center justify-center rounded-full shadow-lg active:scale-90 transition-all"
+          style={{
+            right: '16px',
+            // On feed: float above the ~74px action bar; elsewhere: just above BottomNav
+            bottom: isOnFeed
+              ? 'calc(env(safe-area-inset-bottom, 0px) + 160px)'
+              : 'calc(env(safe-area-inset-bottom, 0px) + 80px)',
+            width: '48px',
+            height: '48px',
+            background: 'linear-gradient(135deg, #1B3066 0%, #6d28d9 100%)',
+            boxShadow: '0 0 18px rgba(109,40,217,0.55), 0 4px 12px rgba(0,0,0,0.4)',
+            border: '1.5px solid rgba(109,40,217,0.4)',
+          }}
+          aria-label="AI Assistant"
+        >
+          {/* Sparkle / AI icon */}
+          <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2l1.09 3.26L16 6.5l-2.91 1.24L12 11l-1.09-3.26L8 6.5l2.91-1.24L12 2z" />
+            <path d="M19 14l.73 2.18L22 17l-2.27.82L19 20l-.73-2.18L16 17l2.27-.82L19 14z" />
+            <path d="M5 14l.73 2.18L8 17l-2.27.82L5 20l-.73-2.18L2 17l2.27-.82L5 14z" />
+          </svg>
+        </button>
+      )}
 
       {/* Coming Soon modal */}
       {open && (
