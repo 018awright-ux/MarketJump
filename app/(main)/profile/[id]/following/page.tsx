@@ -20,7 +20,7 @@ interface FollowingProfile {
 function FollowingContent() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const supabase = createClient()
+  const [supabase] = useState(() => typeof window !== 'undefined' ? createClient() : null as any)
 
   const [following, setFollowing] = useState<FollowingProfile[]>([])
   const [displayName, setDisplayName] = useState('')

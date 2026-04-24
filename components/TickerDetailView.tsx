@@ -395,7 +395,7 @@ export default function TickerDetailView({ ticker, contextBadge, onClose }: Prop
                           'bg-[#C9A84C]/15 text-[#C9A84C]'
                         }`}>
                           {current.data.stance === 'bullish' ? '🐂 Bullish' :
-                           current.data.stance === 'bearish' ? '🐻 Bearish' : '⚖️ Neutral'}
+                           current.data.stance === 'bearish' ? '🐻 Bearish' : '👀 Watching'}
                         </span>
                         <span className="text-[#6b7280] text-xs">by {current.data.author?.username ?? 'Anonymous'}</span>
                       </div>

@@ -547,7 +547,7 @@ export default function CreatePost({ onClose, onPosted }: CreatePostProps) {
                     : '#6b7280',
                 }}
               >
-                {s === 'bullish' ? '🐂 Bull' : s === 'bearish' ? '🐻 Bear' : '⚖️ Neutral'}
+                {s === 'bullish' ? '🐂 Bull' : s === 'bearish' ? '🐻 Bear' : '👀 Watching'}
               </button>
             ))}
           </div>

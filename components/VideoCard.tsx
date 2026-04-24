@@ -214,7 +214,7 @@ export default function VideoCard({ post, onBullish, onBearish, onDeleted, userI
               isDown ? 'bg-[#FF3B30]/20 text-[#FF3B30] border border-[#FF3B30]/40' :
               'bg-white/10 text-white border border-white/20'
             }`}>
-              {isUp ? '🐂 Bullish' : isDown ? '🐻 Bearish' : '⚖️ Neutral'}
+              {isUp ? '🐂 Bullish' : isDown ? '🐻 Bearish' : '👀 Watching'}
             </span>
             <div className="flex items-center gap-2">
               {post.ticker && post.ticker !== 'GENERAL' && (
@@ -394,7 +394,7 @@ export default function VideoCard({ post, onBullish, onBearish, onDeleted, userI
             isDown ? 'bg-[#FF3B30]/20 text-[#FF3B30] border border-[#FF3B30]/40' :
             'bg-white/10 text-white border border-white/20'
           }`}>
-            {isUp ? '🐂 Bullish' : isDown ? '🐻 Bearish' : '⚖️ Neutral'}
+            {isUp ? '🐂 Bullish' : isDown ? '🐻 Bearish' : '👀 Watching'}
           </span>
         </div>
 

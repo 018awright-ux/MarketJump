@@ -38,7 +38,7 @@ interface CardSentiment {
 }
 
 export default function WatchlistPage() {
-  const supabase = createClient()
+  const [supabase] = useState(() => typeof window !== 'undefined' ? createClient() : null as any)
   const [items, setItems] = useState<WatchlistItem[]>([])
   const [quotes, setQuotes] = useState<QuoteMap>({})
   const [userPredictions, setUserPredictions] = useState<Record<string, UserPrediction>>({})

@@ -70,7 +70,7 @@ function timeAgo(dateStr: string): string {
 function PublicBrandContent() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const supabase = createClient()
+  const [supabase] = useState(() => typeof window !== 'undefined' ? createClient() : null as any)
 
   const [profile, setProfile] = useState<BrandProfile | null>(null)
   const [predictions, setPredictions] = useState<Prediction[]>([])

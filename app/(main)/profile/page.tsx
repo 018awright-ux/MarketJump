@@ -87,7 +87,7 @@ function timeAgo(dateStr: string): string {
 
 export default function BrandPage() {
   const router = useRouter()
-  const supabase = createClient()
+  const [supabase] = useState(() => typeof window !== 'undefined' ? createClient() : null as any)
   const [profile, setProfile] = useState<BrandProfile | null>(null)
   const [predictions, setPredictions] = useState<Prediction[]>([])
   const [posts, setPosts] = useState<Post[]>([])
@@ -987,7 +987,7 @@ export default function BrandPage() {
                   isDown ? 'bg-[#FF3B30]/20 text-[#FF3B30] border border-[#FF3B30]/40' :
                   'bg-white/10 text-white border border-white/20'
                 }`}>
-                  {isUp ? '🐂 Bullish' : isDown ? '🐻 Bearish' : '⚖️ Neutral'}
+                  {isUp ? '🐂 Bullish' : isDown ? '🐻 Bearish' : '👀 Watching'}
                 </span>
               </div>
 
@@ -1050,7 +1050,7 @@ export default function BrandPage() {
                   isDown ? 'bg-[#FF3B30]/15 text-[#FF3B30]' :
                   'bg-white/10 text-[#9ca3af]'
                 }`}>
-                  {isUp ? '🐂 Bullish' : isDown ? '🐻 Bearish' : '⚖️ Neutral'}
+                  {isUp ? '🐂 Bullish' : isDown ? '🐻 Bearish' : '👀 Watching'}
                 </span>
                 {vp.ticker && vp.ticker !== 'GENERAL' && (
                   <span className="text-[#C9A84C] font-black text-sm">${vp.ticker}</span>
@@ -1113,7 +1113,7 @@ export default function BrandPage() {
                       : '#6b7280',
                   }}
                 >
-                  {s === 'bullish' ? '🐂 Bull' : s === 'bearish' ? '🐻 Bear' : '⚖️ Neutral'}
+                  {s === 'bullish' ? '🐂 Bull' : s === 'bearish' ? '🐻 Bear' : '👀 Watching'}
                 </button>
               ))}
             </div>

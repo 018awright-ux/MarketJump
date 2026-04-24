@@ -60,7 +60,7 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 
 export default function SettingsPage() {
   const router = useRouter()
-  const supabase = createClient()
+  const [supabase] = useState(() => typeof window !== 'undefined' ? createClient() : null as any)
 
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)

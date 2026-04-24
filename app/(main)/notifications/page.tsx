@@ -69,7 +69,7 @@ function timeAgo(dateStr: string): string {
 
 export default function NotificationsPage() {
   const router = useRouter()
-  const supabase = createClient()
+  const [supabase] = useState(() => typeof window !== 'undefined' ? createClient() : null as any)
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
   const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS)
   const [loadedReal, setLoadedReal] = useState(false)
