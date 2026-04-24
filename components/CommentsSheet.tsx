@@ -15,6 +15,7 @@ interface CommentsSheetProps {
   articleUrl?: string
   title?: string
   onClose: () => void
+  onCommentPosted?: () => void
 }
 
 function timeAgo(iso: string): string {
@@ -25,7 +26,7 @@ function timeAgo(iso: string): string {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
-export default function CommentsSheet({ postId, cardId, articleUrl, title, onClose }: CommentsSheetProps) {
+export default function CommentsSheet({ postId, cardId, articleUrl, title, onClose, onCommentPosted }: CommentsSheetProps) {
   const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(true)
   const [body, setBody] = useState('')
@@ -35,6 +36,9 @@ export default function CommentsSheet({ postId, cardId, articleUrl, title, onClo
 
   useEffect(() => {
     loadComments()
+    // Focus input immediately so keyboard opens
+    const timer = setTimeout(() => inputRef.current?.focus(), 300)
+    return () => clearTimeout(timer)
   }, [postId, cardId, articleUrl])
 
   async function loadComments() {
@@ -64,6 +68,7 @@ export default function CommentsSheet({ postId, cardId, articleUrl, title, onClo
         const data = await res.json()
         setComments(prev => [...prev, data.comment])
         setBody('')
+        onCommentPosted?.()
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
       }
     } catch {}

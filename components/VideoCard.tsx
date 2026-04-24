@@ -21,12 +21,14 @@ interface VideoCardProps {
   onBullish: () => void
   onBearish: () => void
   onJump?: () => void
+  onDeleted?: () => void
+  userId?: string | null
   // Legacy optional props kept for Tracklist
   onTrack?: () => void
   tracked?: boolean
 }
 
-export default function VideoCard({ post, onBullish, onBearish }: VideoCardProps) {
+export default function VideoCard({ post, onBullish, onBearish, onDeleted, userId }: VideoCardProps) {
   const [clipIndex, setClipIndex] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -35,6 +37,8 @@ export default function VideoCard({ post, onBullish, onBearish }: VideoCardProps
   const [swipeDir, setSwipeDir] = useState<'left' | 'right' | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragX, setDragX] = useState(0)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const swipeStartX = useRef(0)
   const videoRef = useRef<HTMLVideoElement>(null)
   const clips = post.videos ?? []
@@ -111,6 +115,18 @@ export default function VideoCard({ post, onBullish, onBearish }: VideoCardProps
     if (playing && videoRef.current) videoRef.current.play().catch(() => {})
   }
 
+  async function handleDelete() {
+    setDeleting(true)
+    try {
+      await fetch(`/api/posts/${post.id}`, { method: 'DELETE' })
+      setShowDeleteConfirm(false)
+      onDeleted?.()
+    } catch {
+      setDeleting(false)
+    }
+  }
+
+  const isOwner = userId && post.user_id && userId === post.user_id
   const isUp = post.stance === 'bullish'
   const isDown = post.stance === 'bearish'
   const bull = post.bull_votes + post.bear_votes > 0
@@ -138,6 +154,34 @@ export default function VideoCard({ post, onBullish, onBearish }: VideoCardProps
         onMouseUp={handleSwipeEnd}
         onMouseLeave={handleSwipeEnd}
       >
+        {/* Delete confirm overlay — text card */}
+        {showDeleteConfirm && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-end rounded-3xl overflow-hidden"
+            style={{ background: 'rgba(8,12,20,0.85)', backdropFilter: 'blur(6px)' }}>
+            <div className="w-full px-5 pb-8 pt-6 flex flex-col gap-3"
+              style={{ background: '#0d1422', borderTop: '1px solid rgba(201,168,76,0.2)' }}>
+              <p className="text-white font-bold text-center text-base">Delete this post?</p>
+              <p className="text-[#6b7280] text-xs text-center">This can&apos;t be undone.</p>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="w-full py-3 rounded-2xl font-black text-white text-sm active:scale-95 transition-all disabled:opacity-50"
+                style={{ background: '#FF3B30' }}
+              >
+                {deleting ? 'Deleting…' : 'Yes, Delete'}
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="w-full py-3 rounded-2xl font-bold text-[#6b7280] text-sm active:scale-95 transition-all"
+                style={{ background: 'rgba(30,45,74,0.6)', border: '1px solid rgba(30,45,74,0.8)' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Swipe overlays */}
         {isDragging && dragX > 30 && (
           <div className="absolute inset-0 rounded-3xl bg-[#00C805]/15 border-2 border-[#00C805] z-20 pointer-events-none flex items-center justify-center">
@@ -152,7 +196,7 @@ export default function VideoCard({ post, onBullish, onBearish }: VideoCardProps
 
         {/* Content */}
         <div className="flex-1 flex flex-col p-5">
-          {/* Header row: stance + ticker */}
+          {/* Header row: stance + ticker + delete */}
           <div className="flex items-center justify-between mb-4">
             <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
               isUp ? 'bg-[#00C805]/20 text-[#00C805] border border-[#00C805]/40' :
@@ -161,9 +205,19 @@ export default function VideoCard({ post, onBullish, onBearish }: VideoCardProps
             }`}>
               {isUp ? '🐂 Bullish' : isDown ? '🐻 Bearish' : '⚖️ Neutral'}
             </span>
-            {post.ticker && post.ticker !== 'GENERAL' && (
-              <span className="text-[#C9A84C] font-black text-lg">${post.ticker}</span>
-            )}
+            <div className="flex items-center gap-2">
+              {post.ticker && post.ticker !== 'GENERAL' && (
+                <span className="text-[#C9A84C] font-black text-lg">${post.ticker}</span>
+              )}
+              {isOwner && (
+                <button
+                  onClick={e => { e.stopPropagation(); setShowDeleteConfirm(true) }}
+                  className="text-[#4b5563] text-xl leading-none px-1 active:text-[#FF3B30] transition-colors"
+                >
+                  ···
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Author */}
@@ -394,6 +448,34 @@ export default function VideoCard({ post, onBullish, onBearish }: VideoCardProps
         )}
       </div>
 
+      {/* Delete confirm overlay */}
+      {showDeleteConfirm && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-end rounded-3xl overflow-hidden"
+          style={{ background: 'rgba(8,12,20,0.85)', backdropFilter: 'blur(6px)' }}>
+          <div className="w-full px-5 pb-8 pt-6 flex flex-col gap-3"
+            style={{ background: '#0d1422', borderTop: '1px solid rgba(201,168,76,0.2)' }}>
+            <p className="text-white font-bold text-center text-base">Delete this post?</p>
+            <p className="text-[#6b7280] text-xs text-center">This can&apos;t be undone.</p>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="w-full py-3 rounded-2xl font-black text-white text-sm active:scale-95 transition-all disabled:opacity-50"
+              style={{ background: '#FF3B30' }}
+            >
+              {deleting ? 'Deleting…' : 'Yes, Delete'}
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={deleting}
+              className="w-full py-3 rounded-2xl font-bold text-[#6b7280] text-sm active:scale-95 transition-all"
+              style={{ background: 'rgba(30,45,74,0.6)', border: '1px solid rgba(30,45,74,0.8)' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Info bar */}
       <div className="px-4 py-3 border-t border-[#1e2d4a]">
         {/* Author */}
@@ -415,6 +497,14 @@ export default function VideoCard({ post, onBullish, onBearish }: VideoCardProps
                 </svg>
                 {post.comment_count}
               </span>
+            )}
+            {isOwner && (
+              <button
+                onClick={e => { e.stopPropagation(); setShowDeleteConfirm(true) }}
+                className="text-[#4b5563] text-base leading-none px-1 active:text-[#FF3B30] transition-colors"
+              >
+                ···
+              </button>
             )}
           </div>
         </div>

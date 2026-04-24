@@ -435,9 +435,19 @@ export default function FeedPage() {
             <VideoCard
               key={currentItem.data.id}
               post={currentItem.data}
+              userId={userId}
               onBullish={() => { handleVote(currentItem.data.id, 'bullish'); handlePrediction('bullish') }}
               onBearish={() => { handleVote(currentItem.data.id, 'bearish'); handlePrediction('bearish') }}
               onJump={advance}
+              onDeleted={() => {
+                // Remove deleted post from feed and move to next item
+                setFeed(prev => {
+                  const next = prev.filter((_, i) => i !== index)
+                  return next
+                })
+                setIndex(i => Math.min(i, feed.length - 2))
+                setHistory([])
+              }}
             />
           ) : (
             <JumpCard
@@ -539,9 +549,27 @@ export default function FeedPage() {
       {showCreate && (
         <CreatePost
           onClose={() => setShowCreate(false)}
-          onPosted={() => {
+          onPosted={async () => {
             setShowCreate(false)
-            loadFeed(true, activeFilterRef.current)
+            try {
+              // Fetch the freshest post (the one just created) and prepend it
+              const res = await fetch('/api/posts')
+              const data = await res.json()
+              const newest = data.posts?.[0]
+              if (newest) {
+                setFeed(prev => {
+                  // Remove any existing copy of this post, then prepend
+                  const without = prev.filter(f => !(f.kind === 'video' && f.data.id === newest.id))
+                  return [{ kind: 'video' as const, data: newest }, ...without]
+                })
+                setIndex(0)
+                setHistory([])
+              } else {
+                loadFeed(true, activeFilterRef.current)
+              }
+            } catch {
+              loadFeed(true, activeFilterRef.current)
+            }
           }}
         />
       )}
@@ -553,6 +581,16 @@ export default function FeedPage() {
           cardId={currentItem.kind === 'card' ? currentItem.data.id : undefined}
           title={currentItem.kind === 'card' ? currentItem.data.ticker : currentItem.data.ticker}
           onClose={() => setShowComments(false)}
+          onCommentPosted={() => {
+            // Increment comment count on the current feed item immediately
+            setFeed(prev => prev.map((item, i) => {
+              if (i !== index) return item
+              if (item.kind === 'video') {
+                return { ...item, data: { ...item.data, comment_count: (item.data.comment_count ?? 0) + 1 } }
+              }
+              return item
+            }))
+          }}
         />
       )}
     </>
