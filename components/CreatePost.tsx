@@ -102,17 +102,37 @@ async function getVideoDuration(file: File): Promise<number> {
 
 async function splitVideo(file: File, onProgress: (msg: string) => void): Promise<Clip[]> {
   const duration = await getVideoDuration(file)
-  if (duration <= SEGMENT_DURATION) {
+  const isMP4 = file.type === 'video/mp4' || file.type === 'video/webm'
+
+  // Short MP4/WebM — no processing needed, all browsers can play it
+  if (duration <= SEGMENT_DURATION && isMP4) {
     const url = URL.createObjectURL(file)
     return [{ blob: file, url, duration, name: file.name, mediaType: 'video' }]
   }
 
   onProgress('Loading video processor...')
   const ff = await getFFmpeg()
-  ff.on('progress', ({ progress }) => { onProgress(`Splitting... ${Math.round(progress * 100)}%`) })
+  ff.on('progress', ({ progress }) => { onProgress(`Converting... ${Math.round(progress * 100)}%`) })
 
-  const inputName = 'input.mp4'
+  // Use the real extension so FFmpeg can detect the format
+  const inputExt = file.type.includes('quicktime') || file.type.includes('mov') ? 'mov' : 'mp4'
+  const inputName = `input.${inputExt}`
   await ff.writeFile(inputName, await fetchFile(file))
+
+  // Short MOV/non-MP4: just remux to MP4 container, no re-encode needed
+  if (duration <= SEGMENT_DURATION) {
+    const outputName = 'output.mp4'
+    onProgress('Converting to MP4...')
+    await ff.exec(['-i', inputName, '-c', 'copy', '-movflags', '+faststart', outputName])
+    const data = await ff.readFile(outputName)
+    const raw = data instanceof Uint8Array ? data : new TextEncoder().encode(data as string)
+    const copy = new Uint8Array(raw.length); copy.set(raw)
+    const blob = new Blob([copy], { type: 'video/mp4' })
+    const url = URL.createObjectURL(blob)
+    await ff.deleteFile(inputName)
+    await ff.deleteFile(outputName)
+    return [{ blob, url, duration, name: file.name.replace(/\.\w+$/, '.mp4'), mediaType: 'video' }]
+  }
 
   const segmentCount = Math.ceil(duration / SEGMENT_DURATION)
   const clips: Clip[] = []
