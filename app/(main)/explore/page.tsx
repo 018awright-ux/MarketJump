@@ -4,6 +4,9 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import type { JumpCard } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
+import CommentsSheet from '@/components/CommentsSheet'
+import PullIndicator from '@/components/PullIndicator'
+import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 
 interface SearchResult {
   symbol: string
@@ -79,8 +82,26 @@ export default function ExplorePage() {
   const [interestCards, setInterestCards] = useState<JumpCard[]>([])
   const [loadingPersonalized, setLoadingPersonalized] = useState(true)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [newsTab, setNewsTab] = useState<'yours' | 'market'>('yours')
+  const [trackedTickers, setTrackedTickers] = useState<Set<string>>(new Set())
+  const [commentTarget, setCommentTarget] = useState<{ url: string; title: string } | null>(null)
 
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const ptr = usePullToRefresh(async () => {
+    setLoadingPersonalized(true)
+    fetch('/api/sectors').then(r => r.json()).then(d => { if (d.sectors?.length > 0) setSectors(d.sectors) }).catch(() => {})
+    try {
+      const res = await fetch('/api/news/personalized')
+      const d = await res.json()
+      setWatchlistNews(d.watchlistNews ?? [])
+      setGeneralNews(d.generalNews ?? [])
+      setInterestCards(d.cards ?? [])
+    } catch {
+      try { const d = await (await fetch('/api/news')).json(); setGeneralNews(d.news ?? []) } catch {}
+    }
+    setLoadingPersonalized(false)
+  })
 
   useEffect(() => {
     const supabase = createClient()
@@ -88,6 +109,13 @@ export default function ExplorePage() {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
       setIsLoggedIn(!!user)
+
+      if (user) {
+        supabase.from('watchlist').select('ticker').eq('user_id', user.id)
+          .then(({ data }) => {
+            if (data) setTrackedTickers(new Set(data.map((w: { ticker: string }) => w.ticker)))
+          })
+      }
 
       // Load top brands
       supabase
@@ -207,13 +235,26 @@ export default function ExplorePage() {
   const currentCard = stockData?.cards[cardIndex]
   const isUp = (stockData?.quote?.dp ?? 0) >= 0
 
+  async function toggleTrack(ticker: string) {
+    if (!isLoggedIn) return
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    if (trackedTickers.has(ticker)) {
+      await supabase.from('watchlist').delete().eq('user_id', user.id).eq('ticker', ticker)
+      setTrackedTickers(prev => { const n = new Set(prev); n.delete(ticker); return n })
+      setWatchlistTickers(prev => prev.filter(t => t !== ticker))
+    } else {
+      await supabase.from('watchlist').insert({ user_id: user.id, ticker })
+      setTrackedTickers(prev => new Set([...prev, ticker]))
+      setWatchlistTickers(prev => prev.includes(ticker) ? prev : [ticker, ...prev])
+    }
+  }
+
   function NewsCard({ item }: { item: NewsItem }) {
     return (
-      <a
-        href={item.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block rounded-xl border border-[#1e2d4a] p-3 hover:border-[#C9A84C]/30 transition-colors"
+      <div
+        className="rounded-xl border border-[#1e2d4a] p-3 transition-colors"
         style={{ background: 'rgba(13,20,34,0.8)' }}
       >
         {item.ticker && (
@@ -221,8 +262,15 @@ export default function ExplorePage() {
             {item.ticker}
           </span>
         )}
-        <p className="text-white text-xs font-medium leading-snug mb-1 mt-1">{item.headline}</p>
-        <div className="flex items-center gap-2">
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block"
+        >
+          <p className="text-white text-xs font-medium leading-snug mb-1 mt-1 hover:text-[#C9A84C] transition-colors">{item.headline}</p>
+        </a>
+        <div className="flex items-center gap-2 mt-1">
           <span className="text-[#C9A84C] text-[10px]">{item.source}</span>
           {item.datetime && (
             <>
@@ -230,13 +278,29 @@ export default function ExplorePage() {
               <span className="text-[#6b7280] text-[10px]">{timeAgo(item.datetime)}</span>
             </>
           )}
+          <button
+            className="ml-auto flex items-center gap-1 text-[#4b5563] hover:text-[#6b7280] transition-colors"
+            onClick={() => setCommentTarget({ url: item.url, title: item.headline })}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <span className="text-[10px] font-medium">Chat</span>
+          </button>
         </div>
-      </a>
+      </div>
     )
   }
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
+      {commentTarget && (
+        <CommentsSheet
+          articleUrl={commentTarget.url}
+          title={commentTarget.title}
+          onClose={() => setCommentTarget(null)}
+        />
+      )}
       <div className="px-5 pt-4 pb-3">
         <h1 className="text-xl font-black text-white mb-3">Explore</h1>
 
@@ -311,7 +375,8 @@ export default function ExplorePage() {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-4">
+      <div ref={ptr.scrollRef} className="flex-1 overflow-y-auto px-5 pb-4" {...ptr.touchHandlers}>
+        <PullIndicator pullDistance={ptr.pullDistance} refreshing={ptr.refreshing} />
 
         {/* ── STOCK SEARCH RESULT PANEL ─────────────────────────────── */}
         {searchMode === 'stocks' && stockData && (
@@ -333,9 +398,24 @@ export default function ExplorePage() {
                         </div>
                       )}
                     </div>
-                    {stockData.cards.length > 0 && (
-                      <span className="text-[#6b7280] text-xs font-mono">{cardIndex + 1}/{stockData.cards.length} topics</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {stockData.cards.length > 0 && (
+                        <span className="text-[#6b7280] text-xs font-mono">{cardIndex + 1}/{stockData.cards.length}</span>
+                      )}
+                      {isLoggedIn && (
+                        <button
+                          onClick={() => toggleTrack(stockData.ticker)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all active:scale-95"
+                          style={{
+                            background: trackedTickers.has(stockData.ticker) ? 'rgba(201,168,76,0.15)' : 'rgba(13,20,34,0.8)',
+                            borderColor: trackedTickers.has(stockData.ticker) ? 'rgba(201,168,76,0.5)' : 'rgba(30,45,74,0.8)',
+                            color: trackedTickers.has(stockData.ticker) ? '#C9A84C' : '#6b7280',
+                          }}
+                        >
+                          {trackedTickers.has(stockData.ticker) ? '⭐ Tracked' : '☆ Track'}
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {currentCard && (
@@ -438,90 +518,128 @@ export default function ExplorePage() {
               </div>
             </div>
 
-            {/* Sector Pulse — always above news */}
+            {/* Sector Pulse — clickable tiles that load stock detail */}
             {sectors.length > 0 && (
               <div className="mb-5">
                 <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Sector Pulse</div>
                 <div className="grid grid-cols-3 gap-2">
                   {sectors.map(sector => (
-                    <div
+                    <button
                       key={sector.name}
-                      className="rounded-xl p-3 text-center border"
+                      onClick={() => loadStock(sector.symbol)}
+                      className="rounded-xl p-3 text-center border transition-all active:scale-95"
                       style={{
-                        background: sector.up ? 'rgba(0,200,5,0.08)' : 'rgba(255,59,48,0.08)',
-                        borderColor: sector.up ? 'rgba(0,200,5,0.2)' : 'rgba(255,59,48,0.2)',
+                        background: stockData?.ticker === sector.symbol
+                          ? (sector.up ? 'rgba(0,200,5,0.2)' : 'rgba(255,59,48,0.2)')
+                          : (sector.up ? 'rgba(0,200,5,0.08)' : 'rgba(255,59,48,0.08)'),
+                        borderColor: stockData?.ticker === sector.symbol
+                          ? (sector.up ? 'rgba(0,200,5,0.6)' : 'rgba(255,59,48,0.6)')
+                          : (sector.up ? 'rgba(0,200,5,0.2)' : 'rgba(255,59,48,0.2)'),
                       }}
                     >
-                      <div className="text-xs text-[#9ca3af] mb-1">{sector.name}</div>
+                      <div className="text-[10px] text-[#9ca3af] mb-0.5 font-medium">{sector.name}</div>
+                      <div className="text-[10px] text-[#6b7280] mb-1">{sector.symbol}</div>
                       <div className={`text-sm font-bold ${sector.up ? 'text-[#00C805]' : 'text-[#FF3B30]'}`}>
                         {sector.change === null ? '—' : `${sector.up ? '+' : ''}${sector.change.toFixed(2)}%`}
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* News for your stocks */}
-            {watchlistNews.length > 0 && (
-              <div className="mb-5">
-                <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">
-                  News for Your Stocks
-                </div>
-                <div className="space-y-2">
-                  {watchlistNews.map((item, i) => <NewsCard key={i} item={item} />)}
-                </div>
-              </div>
-            )}
-
-            {/* Interest-matched cards */}
-            {interests.length > 0 && interestCards.length > 0 && (
-              <div className="mb-5">
-                <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">
-                  Based on Your Interests · {interests.slice(0, 3).join(', ')}
-                </div>
-                <div className="space-y-2">
-                  {interestCards.slice(0, 5).map(card => (
-                    <div key={card.id} className="rounded-xl border border-[#1e2d4a] p-3" style={{ background: 'rgba(13,20,34,0.8)' }}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[#C9A84C] text-xs font-black">{card.ticker}</span>
-                        {card.company_name && <span className="text-[#6b7280] text-[10px] truncate">{card.company_name}</span>}
-                      </div>
-                      <p className="text-white text-xs font-medium leading-snug mb-1">{card.headline}</p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-[#00C805] text-[10px] font-bold">🐂 {card.bull_percent}%</span>
-                        <div className="flex-1 h-0.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,59,48,0.3)' }}>
-                          <div className="h-full bg-[#00C805] rounded-full" style={{ width: `${card.bull_percent}%` }} />
-                        </div>
-                        <span className="text-[#FF3B30] text-[10px] font-bold">{card.bear_percent}% 🐻</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* General / filtered market news */}
+            {/* ── NEWS TABS ── */}
             <div>
-              <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">
-                {interests.length > 0 ? `Market News · ${interests.slice(0, 2).join(' & ')}` : 'Market News'}
-              </div>
-              {loadingPersonalized ? (
-                <div className="space-y-2">
-                  {[...Array(4)].map((_, i) => (
-                    <div key={i} className="rounded-xl border border-[#1e2d4a] p-3 space-y-2" style={{ background: 'rgba(13,20,34,0.8)' }}>
-                      <div className="h-3 bg-[#1e2d4a] rounded animate-pulse w-full" />
-                      <div className="h-3 bg-[#1e2d4a] rounded animate-pulse w-2/3" />
-                      <div className="h-2 bg-[#1e2d4a] rounded animate-pulse w-1/3" />
+              {/* Tab row — only show "Your News" tab when logged in and have personalized data */}
+              {isLoggedIn && (watchlistNews.length > 0 || interestCards.length > 0) ? (
+                <>
+                  <div className="flex border-b border-[#2a2a3a] mb-3">
+                    <button
+                      onClick={() => setNewsTab('yours')}
+                      className={`flex-1 py-2 text-xs font-bold transition-colors ${newsTab === 'yours' ? 'text-[#C9A84C] border-b-2 border-[#C9A84C]' : 'text-[#6b7280]'}`}
+                    >
+                      Your News
+                    </button>
+                    <button
+                      onClick={() => setNewsTab('market')}
+                      className={`flex-1 py-2 text-xs font-bold transition-colors ${newsTab === 'market' ? 'text-[#C9A84C] border-b-2 border-[#C9A84C]' : 'text-[#6b7280]'}`}
+                    >
+                      Market News
+                    </button>
+                  </div>
+
+                  {newsTab === 'yours' ? (
+                    <div className="space-y-2">
+                      {/* Watchlist news */}
+                      {watchlistNews.map((item, i) => <NewsCard key={`wl-${i}`} item={item} />)}
+
+                      {/* Interest-matched cards */}
+                      {interestCards.slice(0, 5).map(card => (
+                        <div key={card.id} className="rounded-xl border border-[#1e2d4a] p-3" style={{ background: 'rgba(13,20,34,0.8)' }}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[#C9A84C] text-xs font-black">{card.ticker}</span>
+                            {card.company_name && <span className="text-[#6b7280] text-[10px] truncate">{card.company_name}</span>}
+                          </div>
+                          <p className="text-white text-xs font-medium leading-snug mb-1">{card.headline}</p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="text-[#00C805] text-[10px] font-bold">🐂 {card.bull_percent}%</span>
+                            <div className="flex-1 h-0.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,59,48,0.3)' }}>
+                              <div className="h-full bg-[#00C805] rounded-full" style={{ width: `${card.bull_percent}%` }} />
+                            </div>
+                            <span className="text-[#FF3B30] text-[10px] font-bold">{card.bear_percent}% 🐻</span>
+                          </div>
+                        </div>
+                      ))}
+
+                      {watchlistNews.length === 0 && interestCards.length === 0 && (
+                        <div className="text-[#6b7280] text-xs text-center py-6">
+                          Add stocks to your Tracklist to see personalized news.
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
-              ) : generalNews.length > 0 ? (
-                <div className="space-y-2">
-                  {generalNews.map((item, i) => <NewsCard key={i} item={item} />)}
-                </div>
+                  ) : (
+                    /* Market News tab */
+                    loadingPersonalized ? (
+                      <div className="space-y-2">
+                        {[...Array(4)].map((_, i) => (
+                          <div key={i} className="rounded-xl border border-[#1e2d4a] p-3 space-y-2" style={{ background: 'rgba(13,20,34,0.8)' }}>
+                            <div className="h-3 bg-[#1e2d4a] rounded animate-pulse w-full" />
+                            <div className="h-3 bg-[#1e2d4a] rounded animate-pulse w-2/3" />
+                            <div className="h-2 bg-[#1e2d4a] rounded animate-pulse w-1/3" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : generalNews.length > 0 ? (
+                      <div className="space-y-2">
+                        {generalNews.map((item, i) => <NewsCard key={`gn-${i}`} item={item} />)}
+                      </div>
+                    ) : (
+                      <div className="text-[#6b7280] text-xs text-center py-6">No news available right now.</div>
+                    )
+                  )}
+                </>
               ) : (
-                <div className="text-[#6b7280] text-xs text-center py-6">No news available right now.</div>
+                /* Not logged in or no personalized data — show market news only */
+                <>
+                  <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">Market News</div>
+                  {loadingPersonalized ? (
+                    <div className="space-y-2">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="rounded-xl border border-[#1e2d4a] p-3 space-y-2" style={{ background: 'rgba(13,20,34,0.8)' }}>
+                          <div className="h-3 bg-[#1e2d4a] rounded animate-pulse w-full" />
+                          <div className="h-3 bg-[#1e2d4a] rounded animate-pulse w-2/3" />
+                          <div className="h-2 bg-[#1e2d4a] rounded animate-pulse w-1/3" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : generalNews.length > 0 ? (
+                    <div className="space-y-2">
+                      {generalNews.map((item, i) => <NewsCard key={`gn-${i}`} item={item} />)}
+                    </div>
+                  ) : (
+                    <div className="text-[#6b7280] text-xs text-center py-6">No news available right now.</div>
+                  )}
+                </>
               )}
             </div>
           </>

@@ -12,7 +12,21 @@ export async function GET() {
     .eq('user_id', user.id)
     .order('added_at', { ascending: false })
 
-  return NextResponse.json({ watchlist: data ?? [] })
+  // Attach company names from jump_cards
+  const tickers = (data ?? []).map((w: { ticker: string }) => w.ticker)
+  const { data: cards } = tickers.length
+    ? await supabase.from('jump_cards').select('ticker, company_name').in('ticker', tickers)
+    : { data: [] }
+
+  const companyMap: Record<string, string | null> = {}
+  for (const c of (cards ?? [])) companyMap[c.ticker] = c.company_name ?? null
+
+  const withCompany = (data ?? []).map((w: Record<string, unknown>) => ({
+    ...w,
+    company_name: companyMap[w.ticker as string] ?? null,
+  }))
+
+  return NextResponse.json({ watchlist: withCompany })
 }
 
 export async function POST(req: NextRequest) {

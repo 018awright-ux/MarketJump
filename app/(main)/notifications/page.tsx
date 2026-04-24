@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import PullIndicator from '@/components/PullIndicator'
+import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 
 type NotifType = 'prediction' | 'follow' | 'alert' | 'market'
 
@@ -29,27 +31,27 @@ const MOCK_NOTIFICATIONS: Notification[] = [
 type FilterKey = 'all' | 'predictions' | 'follows' | 'alerts'
 
 const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'all', label: 'All' },
+  { key: 'all',         label: 'All' },
   { key: 'predictions', label: 'Predictions' },
-  { key: 'follows', label: 'Follows' },
-  { key: 'alerts', label: 'Alerts' },
+  { key: 'follows',     label: 'Follows' },
+  { key: 'alerts',      label: 'Alerts' },
 ]
 
 function getIcon(type: NotifType): string {
   switch (type) {
     case 'prediction': return '🎯'
-    case 'follow': return '👥'
-    case 'alert': return '⚡'
-    case 'market': return '📊'
+    case 'follow':     return '👥'
+    case 'alert':      return '⚡'
+    case 'market':     return '📊'
   }
 }
 
 function filterNotifications(notifications: Notification[], filter: FilterKey): Notification[] {
   switch (filter) {
-    case 'all': return notifications
+    case 'all':         return notifications
     case 'predictions': return notifications.filter(n => n.type === 'prediction')
-    case 'follows': return notifications.filter(n => n.type === 'follow')
-    case 'alerts': return notifications.filter(n => n.type === 'alert' || n.type === 'market')
+    case 'follows':     return notifications.filter(n => n.type === 'follow')
+    case 'alerts':      return notifications.filter(n => n.type === 'alert' || n.type === 'market')
   }
 }
 
@@ -70,38 +72,38 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS)
   const [loadedReal, setLoadedReal] = useState(false)
 
-  useEffect(() => {
-    async function loadNotifications() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+  const ptr = usePullToRefresh(async () => { await loadNotifications() })
 
-        const { data, error } = await supabase
-          .from('notifications')
-          .select('id, type, title, body, read, href, created_at')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(50)
+  useEffect(() => { loadNotifications() }, [])
 
-        if (error || !data) return // table doesn't exist yet — keep mock
+  async function loadNotifications() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-        if (data.length > 0) {
-          const mapped: Notification[] = data.map(n => ({
-            id: n.id,
-            type: (n.type ?? 'prediction') as NotifType,
-            title: n.title ?? '',
-            subtitle: n.body ?? '',
-            time: timeAgo(n.created_at),
-            unread: !n.read,
-            href: n.href ?? '/profile',
-          }))
-          setNotifications(mapped)
-          setLoadedReal(true)
-        }
-      } catch { /* notifications table may not exist yet — keep mock */ }
-    }
-    loadNotifications()
-  }, [])
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('id, type, title, body, read, href, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      if (error || !data) return
+      if (data.length > 0) {
+        const mapped: Notification[] = data.map(n => ({
+          id: n.id,
+          type: (n.type ?? 'prediction') as NotifType,
+          title: n.title ?? '',
+          subtitle: n.body ?? '',
+          time: timeAgo(n.created_at),
+          unread: !n.read,
+          href: n.href ?? '/profile',
+        }))
+        setNotifications(mapped)
+        setLoadedReal(true)
+      }
+    } catch { /* table may not exist yet — keep mock */ }
+  }
 
   const unreadCount = notifications.filter(n => n.unread).length
   const filtered = filterNotifications(notifications, activeFilter)
@@ -139,11 +141,7 @@ export default function NotificationsPage() {
           <h1 className="text-xl font-black text-white">Notifications</h1>
         </div>
         {unreadCount > 0 && (
-          <button
-            onClick={markAllRead}
-            className="text-xs font-semibold"
-            style={{ color: '#C9A84C' }}
-          >
+          <button onClick={markAllRead} className="text-xs font-semibold" style={{ color: '#C9A84C' }}>
             Mark all read
           </button>
         )}
@@ -151,7 +149,7 @@ export default function NotificationsPage() {
 
       {/* Filter pills */}
       <div className="px-5 pb-3 flex-shrink-0">
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
           {FILTERS.map(f => {
             const active = activeFilter === f.key
             return (
@@ -159,11 +157,9 @@ export default function NotificationsPage() {
                 key={f.key}
                 onClick={() => setActiveFilter(f.key)}
                 className="flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold border transition-colors"
-                style={
-                  active
-                    ? { color: '#C9A84C', borderColor: '#C9A84C', background: 'rgba(201,168,76,0.1)' }
-                    : { color: '#6b7280', borderColor: '#2a2a3a', background: 'transparent' }
-                }
+                style={active
+                  ? { color: '#C9A84C', borderColor: '#C9A84C', background: 'rgba(201,168,76,0.1)' }
+                  : { color: '#6b7280', borderColor: '#2a2a3a', background: 'transparent' }}
               >
                 {f.label}
               </button>
@@ -172,12 +168,19 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      {/* Notifications list */}
-      <div className="flex-1 overflow-y-auto px-5 pb-4">
+      {/* Scrollable list */}
+      <div
+        ref={ptr.scrollRef}
+        className="flex-1 overflow-y-auto px-5 pb-4"
+        {...ptr.touchHandlers}
+      >
+        <PullIndicator pullDistance={ptr.pullDistance} refreshing={ptr.refreshing} />
+
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full pt-16 gap-3">
             <span className="text-5xl">🔔</span>
             <p className="text-[#6b7280] text-sm font-medium">No notifications here</p>
+            <p className="text-[#4b5563] text-xs">Pull down to refresh</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -188,28 +191,20 @@ export default function NotificationsPage() {
                 className="w-full text-left rounded-2xl border p-4 flex items-center gap-3 transition-colors active:opacity-80"
                 style={{ background: '#12121a', borderColor: '#2a2a3a' }}
               >
-                {/* Icon */}
                 <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-xl"
                   style={{ background: 'rgba(255,255,255,0.05)' }}>
                   {getIcon(notif.type)}
                 </div>
-
-                {/* Content */}
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-bold text-sm leading-snug truncate">{notif.title}</p>
                   <p className="text-[#6b7280] mt-0.5 leading-snug line-clamp-1" style={{ fontSize: '12px' }}>
                     {notif.subtitle}
                   </p>
                 </div>
-
-                {/* Right side */}
                 <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
                   <span className="text-[#6b7280]" style={{ fontSize: '10px' }}>{notif.time}</span>
                   {notif.unread && (
-                    <span
-                      className="block rounded-full"
-                      style={{ width: '6px', height: '6px', background: '#C9A84C' }}
-                    />
+                    <span className="block rounded-full" style={{ width: '6px', height: '6px', background: '#C9A84C' }} />
                   )}
                 </div>
               </button>

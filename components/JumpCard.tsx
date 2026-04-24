@@ -5,13 +5,26 @@ import type { JumpCard as JumpCardType } from '@/lib/types'
 import MomentumMeter from './MomentumMeter'
 import SourceBadge from './SourceBadge'
 
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days}d ago`
+  return new Date(dateStr).toLocaleDateString()
+}
+
 interface JumpCardProps {
   card: JumpCardType
   onBullish: () => void
   onBearish: () => void
-  onTrack: () => void
-  onHold: () => void
-  onJump: () => void
+  // Legacy optional props kept for compatibility with Tracklist/Watchlist
+  onTrack?: () => void
+  onHold?: () => void
+  onJump?: () => void
   tracked?: boolean
 }
 
@@ -19,10 +32,6 @@ export default function JumpCard({
   card,
   onBullish,
   onBearish,
-  onTrack,
-  onHold,
-  onJump,
-  tracked = false,
 }: JumpCardProps) {
   const [swipeDir, setSwipeDir] = useState<'left' | 'right' | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -83,7 +92,7 @@ export default function JumpCard({
   const rotation = isDragging ? dragX * 0.04 : 0
 
   return (
-    <div className="relative w-full h-full flex flex-col" ref={cardRef}>
+    <div className="relative w-full h-full" ref={cardRef}>
       {/* Swipe overlays */}
       {isDragging && dragX > 30 && (
         <div className="absolute inset-0 rounded-3xl bg-[#00C805]/15 border-2 border-[#00C805] z-10 pointer-events-none flex flex-col items-center justify-center gap-3">
@@ -142,9 +151,9 @@ export default function JumpCard({
         </div>
       )}
 
-      {/* Card */}
+      {/* Card — fills h-full of the parent, no inner scroll */}
       <div
-        className={`flex-1 rounded-3xl border border-[#C9A84C]/20 overflow-hidden flex flex-col touch-none select-none backdrop-blur-md cursor-grab active:cursor-grabbing
+        className={`w-full h-full rounded-3xl border border-[#C9A84C]/20 overflow-hidden flex flex-col touch-none select-none backdrop-blur-md cursor-grab active:cursor-grabbing
           ${swipeDir === 'right' ? 'animate-swipe-right' : ''}
           ${swipeDir === 'left' ? 'animate-swipe-left' : ''}
         `}
@@ -191,13 +200,16 @@ export default function JumpCard({
             }`}>
               {card.card_type === 'stock' ? '📉 Stock' : card.card_type === 'social' ? '💬 Social' : '🌍 Macro'}
             </span>
+            {card.created_at && (
+              <span className="text-[#4b5563] text-[10px] ml-auto">{timeAgo(card.created_at)}</span>
+            )}
           </div>
         </div>
 
-        {/* Main content */}
-        <div className="flex-1 px-5 overflow-y-auto">
-          <h3 className="text-white font-bold text-base leading-snug mb-3">{card.headline}</h3>
-          <p className="text-[#9ca3af] text-sm leading-relaxed mb-3">{card.summary}</p>
+        {/* Main content — no internal scroll, text clamped */}
+        <div className="flex-1 px-5 overflow-hidden">
+          <h3 className="text-white font-bold text-base leading-snug mb-2 line-clamp-3">{card.headline}</h3>
+          <p className="text-[#9ca3af] text-sm leading-relaxed mb-2 line-clamp-4">{card.summary}</p>
 
           {/* Top User Signal pill */}
           {(() => {
@@ -238,32 +250,6 @@ export default function JumpCard({
             Live sentiment from MarketJump users
           </div>
         </div>
-      </div>
-
-      {/* Action buttons — Track + Hold only; swipe handles bull/bear */}
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <button
-          onClick={onTrack}
-          className="flex flex-col items-center gap-1 border rounded-2xl py-3 active:scale-95 backdrop-blur-md"
-          style={{
-            background: tracked ? 'rgba(201,168,76,0.15)' : 'rgba(8,12,20,0.6)',
-            borderColor: tracked ? 'rgba(201,168,76,0.5)' : 'rgba(30,45,74,0.8)',
-          }}
-        >
-          <span className="text-xl">{tracked ? '⭐' : '☆'}</span>
-          <span className={`text-xs font-bold ${tracked ? 'text-[#C9A84C]' : 'text-[#6b7280]'}`}>
-            {tracked ? 'Tracked' : 'Track'}
-          </span>
-        </button>
-
-        <button
-          onClick={onHold}
-          className="flex flex-col items-center gap-1 border border-[#1e2d4a] rounded-2xl py-3 active:scale-95 backdrop-blur-md"
-          style={{ background: 'rgba(8,12,20,0.6)' }}
-        >
-          <span className="text-xl">🔍</span>
-          <span className="text-[#6b7280] text-xs font-bold">Deep Dive</span>
-        </button>
       </div>
 
     </div>

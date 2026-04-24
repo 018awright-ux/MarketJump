@@ -83,6 +83,7 @@ export interface PostVideo {
   duration_seconds: number | null
   clip_order: number
   thumbnail_url: string | null
+  media_type: 'video' | 'image'
   created_at: string
 }
 
@@ -95,6 +96,7 @@ export interface VideoPost {
   bull_votes: number
   bear_votes: number
   view_count: number
+  comment_count: number
   created_at: string
   videos: PostVideo[]
   author?: {

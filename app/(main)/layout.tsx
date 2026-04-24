@@ -2,10 +2,11 @@ import Link from 'next/link'
 import BottomNav from '@/components/BottomNav'
 import MarketBackground from '@/components/MarketBackground'
 import TickerTape from '@/components/TickerTape'
+import AIButton from '@/components/AIButton'
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col min-h-screen max-w-lg mx-auto relative" style={{ background: '#080c14' }}>
+    <div className="flex flex-col max-w-lg mx-auto relative overflow-hidden" style={{ background: '#080c14', height: '100dvh' }}>
       <MarketBackground />
 
       {/*
@@ -14,7 +15,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       */}
       <div
         className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-lg z-50 flex flex-col"
-        style={{ background: 'rgba(8,12,20,0.0)' }}
+        style={{ background: 'rgba(8,12,20,0.0)', paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
         {/* Row 1: live ticker tape */}
         <TickerTape />
@@ -44,11 +45,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </div>
       </div>
 
-      {/* pt-[80px] = ticker (36px) + nav row (44px); pb-20 = bottom nav */}
-      <main className="flex-1 overflow-hidden pb-20 pt-[80px] relative z-10">
+      {/* pt = safe-area-top + ticker(36px) + nav-row(44px); pb = bottom nav(64px) + safe-area-bottom */}
+      <main
+        className="flex-1 overflow-hidden relative"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 80px)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 64px)',
+        }}
+      >
         {children}
       </main>
       <BottomNav />
+      <AIButton />
     </div>
   )
 }

@@ -78,7 +78,7 @@ function BottomNavInner() {
 
 export default function BottomNav() {
   return (
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg backdrop-blur-xl border-t border-[#C9A84C]/20 safe-bottom z-50" style={{ background: 'rgba(8,12,20,0.96)' }}>
+    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg backdrop-blur-xl border-t border-[#C9A84C]/20 z-50" style={{ background: 'rgba(8,12,20,0.96)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       <Suspense fallback={
         <div className="flex items-center justify-around py-2 px-2">
           {NAV_ITEMS.map(item => (

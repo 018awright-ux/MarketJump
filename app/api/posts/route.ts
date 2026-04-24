@@ -11,7 +11,8 @@ export async function GET(req: NextRequest) {
     .select(`
       *,
       post_videos(*),
-      profiles(username, level, market_score)
+      profiles(username, level, market_score),
+      comments(count)
     `)
     .order('created_at', { ascending: false })
     .limit(20)
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest) {
     ...p,
     videos: ((p.post_videos as unknown[]) ?? []).sort((a: unknown, b: unknown) => (a as {clip_order: number}).clip_order - (b as {clip_order: number}).clip_order),
     author: p.profiles,
+    comment_count: (p.comments as { count: number }[] | null)?.[0]?.count ?? 0,
   }))
 
   return NextResponse.json({ posts })
@@ -37,15 +39,19 @@ export async function POST(req: NextRequest) {
 
   const { ticker, caption, stance, videoData } = await req.json()
   // videoData: array of { storage_path, public_url, duration_seconds, clip_order, thumbnail_url }
+  // ticker is optional — posts can be general discussion without a tagged stock
 
-  if (!ticker || !stance) {
+  if (!stance) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
+  if (!caption?.trim() && !videoData?.length) {
+    return NextResponse.json({ error: 'Post needs text or media' }, { status: 400 })
+  }
 
-  // Create the post
+  // Create the post — ticker may be null for general posts
   const { data: post, error: postError } = await supabase
     .from('posts')
-    .insert({ user_id: user.id, ticker, caption, stance })
+    .insert({ user_id: user.id, ticker: ticker || null, caption, stance })
     .select()
     .single()
 
@@ -62,6 +68,7 @@ export async function POST(req: NextRequest) {
         duration_seconds: v.duration_seconds ?? null,
         clip_order: i,
         thumbnail_url: v.thumbnail_url ?? null,
+        media_type: v.media_type ?? 'video',
       }))
     )
   }

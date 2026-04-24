@@ -22,13 +22,14 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: 'cover',
   themeColor: '#0a0a0f',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} dark`}>
-      <body className="antialiased min-h-screen bg-[#0a0a0f] text-[#f0f0f0] overflow-x-hidden">
+      <body className="antialiased bg-[#0a0a0f] text-[#f0f0f0] overflow-hidden" style={{ height: '100dvh' }}>
         {children}
       </body>
     </html>

@@ -17,6 +17,9 @@ const SECTOR_ETFS = [
   { name: 'Real Estate', symbol: 'XLRE' },
   { name: 'Consumer',    symbol: 'XLY'  },
   { name: 'Commodities', symbol: 'GLD'  },
+  { name: 'Dividends',   symbol: 'VYM'  },
+  { name: 'Bonds',       symbol: 'BND'  },
+  { name: "Int'l",       symbol: 'VEA'  },
 ]
 
 async function fetchQuoteChange(symbol: string): Promise<number | null> {
@@ -60,7 +63,7 @@ const getCachedSectors = unstable_cache(
       .filter(r => r.status === 'fulfilled')
       .map(r => (r as PromiseFulfilledResult<{ name: string; symbol: string; change: number | null; up: boolean }>).value)
   },
-  ['sectors-v2'],
+  ['sectors-v3'],
   { revalidate: 300 }
 )
 

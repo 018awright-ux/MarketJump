@@ -155,7 +155,7 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('post-videos','post-videos',true,524288000,array['video/mp4','video/mov','video/quicktime','video/webm','video/mpeg'])
+values ('post-videos','post-videos',true,524288000,array['video/mp4','video/mov','video/quicktime','video/webm','video/mpeg','image/jpeg','image/png','image/webp','image/gif','image/heic','image/heif'])
 on conflict (id) do nothing;
 
 do $stor$ begin
