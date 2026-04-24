@@ -91,6 +91,8 @@ export default function FeedPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [showComments, setShowComments] = useState(false)
+  // Tracks comments added this session for any feed item (both cards and videos)
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
 
   // Pull-to-refresh touch tracking
   const touchStartY = useRef(0)
@@ -491,14 +493,19 @@ export default function FeedPage() {
                 </svg>
                 <span className="text-[8px] font-bold text-[#6b7280]">Chat</span>
               </button>
-              {currentItem.kind === 'video' && (currentItem.data.comment_count ?? 0) > 0 && (
-                <span
-                  className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 rounded-full flex items-center justify-center text-[9px] font-black pointer-events-none"
-                  style={{ background: '#C9A84C', color: '#000' }}
-                >
-                  {(currentItem.data.comment_count ?? 0) > 99 ? '99+' : currentItem.data.comment_count}
-                </span>
-              )}
+              {(() => {
+                const baseCount = currentItem.kind === 'video' ? (currentItem.data.comment_count ?? 0) : 0
+                const sessionCount = commentCounts[currentItem.data.id] ?? 0
+                const badgeCount = baseCount + sessionCount
+                return badgeCount > 0 ? (
+                  <span
+                    className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 rounded-full flex items-center justify-center text-[9px] font-black pointer-events-none"
+                    style={{ background: '#C9A84C', color: '#000' }}
+                  >
+                    {badgeCount > 99 ? '99+' : badgeCount}
+                  </span>
+                ) : null
+              })()}
             </div>
           </div>
 
@@ -598,13 +605,18 @@ export default function FeedPage() {
           onCommentPosted={() => {
             // Use ref so we always read the current index, never a stale closure value
             const currentIndex = indexRef.current
-            setFeed(prev => prev.map((item, i) => {
-              if (i !== currentIndex) return item
-              if (item.kind === 'video') {
-                return { ...item, data: { ...item.data, comment_count: (item.data.comment_count ?? 0) + 1 } }
-              }
-              return item
-            }))
+            const item = feed[currentIndex]
+            if (!item) return
+            const itemId = item.data.id
+            // Track session comment count for badge (works for both cards and videos)
+            setCommentCounts(prev => ({ ...prev, [itemId]: (prev[itemId] ?? 0) + 1 }))
+            // Also update comment_count in feed array for video posts (persists across navigations)
+            if (item.kind === 'video') {
+              setFeed(prev => prev.map((fi, i) => {
+                if (i !== currentIndex) return fi
+                return { ...fi, data: { ...fi.data, comment_count: (fi.data.comment_count ?? 0) + 1 } }
+              }))
+            }
           }}
         />
       )}

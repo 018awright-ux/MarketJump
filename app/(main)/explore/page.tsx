@@ -223,6 +223,8 @@ export default function ExplorePage() {
 
   async function fetchCompanyNames(tickers: string[]) {
     if (!tickers.length) return
+    // Step 1: check jump_cards (our own DB — fastest, free)
+    const found: Record<string, string> = {}
     try {
       const supabase = createClient()
       const { data } = await supabase
@@ -231,15 +233,43 @@ export default function ExplorePage() {
         .in('ticker', tickers)
         .not('company_name', 'is', null)
       if (data) {
-        setCompanyNames(prev => {
-          const next = { ...prev }
-          for (const row of data as { ticker: string; company_name: string }[]) {
-            if (row.company_name && !next[row.ticker]) next[row.ticker] = row.company_name
-          }
-          return next
-        })
+        for (const row of data as { ticker: string; company_name: string }[]) {
+          if (row.company_name) found[row.ticker] = row.company_name
+        }
       }
     } catch {}
+
+    // Merge what we found from jump_cards into state immediately
+    setCompanyNames(prev => {
+      const next = { ...prev }
+      for (const [ticker, name] of Object.entries(found)) {
+        if (!next[ticker]) next[ticker] = name
+      }
+      return next
+    })
+
+    // Step 2: for any ticker still without a name, call the search API as fallback
+    // Use current state + freshly found to determine what's still missing
+    setCompanyNames(prev => {
+      const stillMissing = tickers.filter(t => !prev[t] && !found[t])
+      if (stillMissing.length > 0) {
+        // Fire-and-forget: fetch search results for each missing ticker
+        for (const ticker of stillMissing) {
+          fetch(`/api/search?q=${encodeURIComponent(ticker)}`)
+            .then(r => r.json())
+            .then((d: { results?: SearchResult[] }) => {
+              const hit = (d.results ?? []).find(
+                (r: SearchResult) => r.symbol.toUpperCase() === ticker.toUpperCase()
+              )
+              if (hit?.description) {
+                setCompanyNames(p => p[ticker] ? p : { ...p, [ticker]: hit.description })
+              }
+            })
+            .catch(() => {})
+        }
+      }
+      return prev // no change here — updates come from the async fetch above
+    })
   }
 
   async function loadStock(ticker: string) {
