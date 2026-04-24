@@ -255,7 +255,7 @@ export default function VideoCard({ post, onBullish, onBearish }: VideoCardProps
 
       {/* Media player — handles both images and videos */}
       <div
-        className="relative flex-1 bg-black min-h-0"
+        className="relative flex-1 bg-black min-h-0 overflow-hidden"
         onClick={e => {
           e.stopPropagation()
           if (isDragging) return
@@ -290,9 +290,8 @@ export default function VideoCard({ post, onBullish, onBearish }: VideoCardProps
           <video
             ref={videoRef}
             src={currentClip.public_url}
-            className="w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover"
             playsInline
-            muted
             preload="metadata"
             onTimeUpdate={handleTimeUpdate}
             onEnded={handleEnded}
