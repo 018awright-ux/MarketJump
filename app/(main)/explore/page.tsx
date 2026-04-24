@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import type { JumpCard } from '@/lib/types'
+import type { JumpCard, UserLevel } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import CommentsSheet from '@/components/CommentsSheet'
+import ExpandedCard from '@/components/ExpandedCard'
 import PullIndicator from '@/components/PullIndicator'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 
@@ -86,6 +87,11 @@ export default function ExplorePage() {
   const [trackedTickers, setTrackedTickers] = useState<Set<string>>(new Set())
   const [commentTarget, setCommentTarget] = useState<{ url: string; title: string } | null>(null)
   const [companyNames, setCompanyNames] = useState<Record<string, string>>({})
+  const [userLevel, setUserLevel] = useState<UserLevel>('rookie')
+  const [showExpandedCard, setShowExpandedCard] = useState(false)
+  const [showCardComments, setShowCardComments] = useState(false)
+  const [cardCommentCounts, setCardCommentCounts] = useState<Record<string, number>>({})
+  const [cardHistory, setCardHistory] = useState<number[]>([])
 
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -112,6 +118,9 @@ export default function ExplorePage() {
       setIsLoggedIn(!!user)
 
       if (user) {
+        supabase.from('profiles').select('level').eq('id', user.id).single()
+          .then(({ data }) => { if (data) setUserLevel(data.level as UserLevel) })
+
         supabase.from('watchlist').select('ticker').eq('user_id', user.id)
           .then(({ data }) => {
             if (data) {
@@ -279,6 +288,9 @@ export default function ExplorePage() {
     setQuery('')
     setResults([])
     setCardIndex(0)
+    setCardHistory([])
+    setShowExpandedCard(false)
+    setShowCardComments(false)
     // Fetch company name if not already known
     if (!companyNames[ticker]) fetchCompanyNames([ticker])
     try {
@@ -462,6 +474,7 @@ export default function ExplorePage() {
                 </div>
               ) : (
                 <>
+                  {/* ── Stock header ── */}
                   <div className="flex items-center justify-between p-4 border-b border-[#1e2d4a]">
                     <div>
                       <div className="flex items-baseline gap-2">
@@ -476,26 +489,12 @@ export default function ExplorePage() {
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      {stockData.cards.length > 0 && (
-                        <span className="text-[#6b7280] text-xs font-mono">{cardIndex + 1}/{stockData.cards.length}</span>
-                      )}
-                      {isLoggedIn && (
-                        <button
-                          onClick={() => toggleTrack(stockData.ticker)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all active:scale-95"
-                          style={{
-                            background: trackedTickers.has(stockData.ticker) ? 'rgba(201,168,76,0.15)' : 'rgba(13,20,34,0.8)',
-                            borderColor: trackedTickers.has(stockData.ticker) ? 'rgba(201,168,76,0.5)' : 'rgba(30,45,74,0.8)',
-                            color: trackedTickers.has(stockData.ticker) ? '#C9A84C' : '#6b7280',
-                          }}
-                        >
-                          {trackedTickers.has(stockData.ticker) ? '⭐ Tracked' : '☆ Track'}
-                        </button>
-                      )}
-                    </div>
+                    {stockData.cards.length > 0 && (
+                      <span className="text-[#6b7280] text-xs font-mono">{cardIndex + 1}/{stockData.cards.length}</span>
+                    )}
                   </div>
 
+                  {/* ── Current card content ── */}
                   {currentCard && (
                     <div className="p-4 border-b border-[#1e2d4a]">
                       <div className="flex items-center gap-2 mb-2">
@@ -518,20 +517,97 @@ export default function ExplorePage() {
                     </div>
                   )}
 
-                  {stockData.cards.length > 1 && (
-                    <div className="flex justify-center py-3 border-b border-[#1e2d4a]">
+                  {/* ── Action bar: Back | Chat | JUMP | Track | Dive ── */}
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-[#1e2d4a]">
+
+                    {/* Back */}
+                    <button
+                      onClick={() => {
+                        setCardHistory(h => {
+                          if (h.length === 0) return h
+                          const prev = h[h.length - 1]
+                          setCardIndex(prev)
+                          return h.slice(0, -1)
+                        })
+                      }}
+                      disabled={cardHistory.length === 0}
+                      className="w-11 h-11 rounded-2xl flex flex-col items-center justify-center gap-0.5 disabled:opacity-25 transition-all active:scale-90"
+                      style={{ background: 'rgba(30,45,74,0.6)', border: '1px solid rgba(30,45,74,0.8)' }}
+                    >
+                      <svg className="w-4 h-4 text-[#6b7280]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      <span className="text-[8px] font-bold text-[#6b7280]">Back</span>
+                    </button>
+
+                    {/* Chat */}
+                    <div className="relative">
                       <button
-                        onClick={() => setCardIndex(i => (i + 1) % stockData.cards.length)}
-                        className="w-14 h-14 rounded-full transition-all active:scale-90 flex flex-col items-center justify-center gap-0.5"
-                        style={{ background: 'linear-gradient(135deg, #1B3066 0%, #2a4a8a 50%, #C9A84C 100%)', color: '#fff', boxShadow: '0 0 20px rgba(201,168,76,0.3)' }}
+                        onClick={() => setShowCardComments(true)}
+                        className="w-11 h-11 rounded-2xl flex flex-col items-center justify-center gap-0.5 active:scale-90 transition-all"
+                        style={{ background: 'rgba(30,45,74,0.6)', border: '1px solid rgba(30,45,74,0.8)' }}
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        <svg className="w-4 h-4 text-[#6b7280]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                         </svg>
-                        <span className="text-[8px] font-black tracking-widest">JUMP</span>
+                        <span className="text-[8px] font-bold text-[#6b7280]">Chat</span>
                       </button>
+                      {currentCard && (cardCommentCounts[currentCard.id] ?? 0) > 0 && (
+                        <span
+                          className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 rounded-full flex items-center justify-center text-[9px] font-black pointer-events-none"
+                          style={{ background: '#C9A84C', color: '#000' }}
+                        >
+                          {(cardCommentCounts[currentCard.id] ?? 0) > 99 ? '99+' : cardCommentCounts[currentCard.id]}
+                        </span>
+                      )}
                     </div>
-                  )}
+
+                    {/* JUMP — big center button */}
+                    <button
+                      onClick={() => {
+                        if (!stockData || stockData.cards.length === 0) return
+                        setCardHistory(h => [...h.slice(-20), cardIndex])
+                        setCardIndex(i => (i + 1) % stockData.cards.length)
+                      }}
+                      disabled={stockData.cards.length <= 1}
+                      className="w-20 h-20 rounded-full flex flex-col items-center justify-center gap-1 active:scale-90 transition-all animate-jump-pulse disabled:opacity-40 disabled:animate-none"
+                      style={{
+                        background: 'linear-gradient(135deg, #1B3066 0%, #2a4a8a 50%, #C9A84C 100%)',
+                        color: '#fff',
+                        boxShadow: '0 0 28px rgba(201,168,76,0.45), 0 0 56px rgba(27,48,102,0.35)',
+                      }}
+                    >
+                      <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <span className="text-[10px] font-black tracking-widest">JUMP</span>
+                    </button>
+
+                    {/* Track */}
+                    <button
+                      onClick={() => isLoggedIn && toggleTrack(stockData.ticker)}
+                      disabled={!isLoggedIn}
+                      className="w-11 h-11 rounded-2xl flex flex-col items-center justify-center gap-0.5 active:scale-90 transition-all disabled:opacity-30"
+                      style={{
+                        background: trackedTickers.has(stockData.ticker) ? 'rgba(201,168,76,0.15)' : 'rgba(30,45,74,0.6)',
+                        border: `1px solid ${trackedTickers.has(stockData.ticker) ? 'rgba(201,168,76,0.5)' : 'rgba(30,45,74,0.8)'}`,
+                      }}
+                    >
+                      <span className="text-base leading-none">{trackedTickers.has(stockData.ticker) ? '⭐' : '☆'}</span>
+                      <span className={`text-[8px] font-bold ${trackedTickers.has(stockData.ticker) ? 'text-[#C9A84C]' : 'text-[#6b7280]'}`}>Track</span>
+                    </button>
+
+                    {/* Deep Dive */}
+                    <button
+                      onClick={() => currentCard && setShowExpandedCard(true)}
+                      disabled={!currentCard}
+                      className="w-11 h-11 rounded-2xl flex flex-col items-center justify-center gap-0.5 active:scale-90 transition-all disabled:opacity-30"
+                      style={{ background: 'rgba(30,45,74,0.6)', border: '1px solid rgba(30,45,74,0.8)' }}
+                    >
+                      <span className="text-base leading-none">🔍</span>
+                      <span className="text-[8px] font-bold text-[#6b7280]">Dive</span>
+                    </button>
+                  </div>
 
                   {stockData.news.length > 0 && (
                     <div className="p-4">
@@ -755,6 +831,40 @@ export default function ExplorePage() {
         )}
 
       </div>
+
+      {/* ── Deep Dive modal for stock cards ── */}
+      {showExpandedCard && currentCard && (
+        <ExpandedCard
+          card={currentCard}
+          level={userLevel}
+          onClose={() => setShowExpandedCard(false)}
+          onBullish={() => setShowExpandedCard(false)}
+          onBearish={() => setShowExpandedCard(false)}
+          onTrack={() => toggleTrack(stockData!.ticker)}
+          onJump={() => {
+            setShowExpandedCard(false)
+            if (stockData && stockData.cards.length > 1) {
+              setCardHistory(h => [...h.slice(-20), cardIndex])
+              setCardIndex(i => (i + 1) % stockData.cards.length)
+            }
+          }}
+          tracked={trackedTickers.has(stockData?.ticker ?? '')}
+        />
+      )}
+
+      {/* ── Comments sheet for current stock card ── */}
+      {showCardComments && (
+        <CommentsSheet
+          cardId={currentCard?.id}
+          title={currentCard ? `${currentCard.ticker} · ${currentCard.headline}` : stockData?.ticker}
+          onClose={() => setShowCardComments(false)}
+          onCommentPosted={() => {
+            if (currentCard) {
+              setCardCommentCounts(prev => ({ ...prev, [currentCard.id]: (prev[currentCard.id] ?? 0) + 1 }))
+            }
+          }}
+        />
+      )}
     </div>
   )
 }
