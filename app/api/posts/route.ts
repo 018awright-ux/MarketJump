@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
       *,
       post_videos(*),
       profiles(username, level, market_score),
-      comments(count)
+      comments(id)
     `)
     .order('created_at', { ascending: false })
     .limit(20)
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     ...p,
     videos: ((p.post_videos as unknown[]) ?? []).sort((a: unknown, b: unknown) => (a as {clip_order: number}).clip_order - (b as {clip_order: number}).clip_order),
     author: p.profiles,
-    comment_count: (p.comments as { count: number }[] | null)?.[0]?.count ?? 0,
+    comment_count: Array.isArray(p.comments) ? (p.comments as unknown[]).length : 0,
   }))
 
   return NextResponse.json({ posts })

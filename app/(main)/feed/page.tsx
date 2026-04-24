@@ -102,6 +102,10 @@ export default function FeedPage() {
   const activeFilterRef = useRef<FeedFilter>(initialFilter)
   useEffect(() => { activeFilterRef.current = activeFilter }, [activeFilter])
 
+  // Keep a ref of current index so callbacks (like onCommentPosted) never read stale index
+  const indexRef = useRef(index)
+  useEffect(() => { indexRef.current = index }, [index])
+
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -582,9 +586,10 @@ export default function FeedPage() {
           title={currentItem.kind === 'card' ? currentItem.data.ticker : currentItem.data.ticker}
           onClose={() => setShowComments(false)}
           onCommentPosted={() => {
-            // Increment comment count on the current feed item immediately
+            // Use ref so we always read the current index, never a stale closure value
+            const currentIndex = indexRef.current
             setFeed(prev => prev.map((item, i) => {
-              if (i !== index) return item
+              if (i !== currentIndex) return item
               if (item.kind === 'video') {
                 return { ...item, data: { ...item.data, comment_count: (item.data.comment_count ?? 0) + 1 } }
               }
