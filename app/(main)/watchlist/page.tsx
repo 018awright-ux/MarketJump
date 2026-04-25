@@ -80,14 +80,14 @@ export default function WatchlistPage() {
               .select('ticker, prediction, price_at_prediction, created_at')
               .eq('user_id', userId)
               .order('created_at', { ascending: false })
-              .then(r => r.data ?? [])
+              .then((r: any) => r.data ?? [])
           : Promise.resolve([]),
         tickers.length > 0
           ? supabase
               .from('jump_cards')
               .select('ticker, bull_percent, bear_percent')
               .in('ticker', tickers)
-              .then(r => r.data ?? [])
+              .then((r: any) => r.data ?? [])
           : Promise.resolve([]),
       ])
 
