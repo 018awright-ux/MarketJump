@@ -70,7 +70,9 @@ function timeAgo(dateStr: string): string {
 function PublicBrandContent() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const [supabase] = useState(() => typeof window !== 'undefined' ? createClient() : null as any)
+  const [supabase] = useState<ReturnType<typeof createClient>>(
+    () => (typeof window !== 'undefined' ? createClient() : null) as ReturnType<typeof createClient>
+  )
 
   const [profile, setProfile] = useState<BrandProfile | null>(null)
   const [predictions, setPredictions] = useState<Prediction[]>([])

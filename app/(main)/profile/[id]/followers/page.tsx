@@ -20,7 +20,9 @@ interface FollowerProfile {
 function FollowersContent() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const [supabase] = useState(() => typeof window !== 'undefined' ? createClient() : null as any)
+  const [supabase] = useState<ReturnType<typeof createClient>>(
+    () => (typeof window !== 'undefined' ? createClient() : null) as ReturnType<typeof createClient>
+  )
 
   const [followers, setFollowers] = useState<FollowerProfile[]>([])
   const [displayName, setDisplayName] = useState('')

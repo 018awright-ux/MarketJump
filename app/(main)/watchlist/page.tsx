@@ -38,7 +38,9 @@ interface CardSentiment {
 }
 
 export default function WatchlistPage() {
-  const [supabase] = useState(() => typeof window !== 'undefined' ? createClient() : null as any)
+  const [supabase] = useState<ReturnType<typeof createClient>>(
+    () => (typeof window !== 'undefined' ? createClient() : null) as ReturnType<typeof createClient>
+  )
   const [items, setItems] = useState<WatchlistItem[]>([])
   const [quotes, setQuotes] = useState<QuoteMap>({})
   const [userPredictions, setUserPredictions] = useState<Record<string, UserPrediction>>({})
@@ -80,14 +82,14 @@ export default function WatchlistPage() {
               .select('ticker, prediction, price_at_prediction, created_at')
               .eq('user_id', userId)
               .order('created_at', { ascending: false })
-              .then((r: any) => r.data ?? [])
+              .then(r => r.data ?? [])
           : Promise.resolve([]),
         tickers.length > 0
           ? supabase
               .from('jump_cards')
               .select('ticker, bull_percent, bear_percent')
               .in('ticker', tickers)
-              .then((r: any) => r.data ?? [])
+              .then(r => r.data ?? [])
           : Promise.resolve([]),
       ])
 

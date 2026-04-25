@@ -87,7 +87,9 @@ function timeAgo(dateStr: string): string {
 
 export default function BrandPage() {
   const router = useRouter()
-  const [supabase] = useState(() => typeof window !== 'undefined' ? createClient() : null as any)
+  const [supabase] = useState<ReturnType<typeof createClient>>(
+    () => (typeof window !== 'undefined' ? createClient() : null) as ReturnType<typeof createClient>
+  )
   const [profile, setProfile] = useState<BrandProfile | null>(null)
   const [predictions, setPredictions] = useState<Prediction[]>([])
   const [posts, setPosts] = useState<Post[]>([])

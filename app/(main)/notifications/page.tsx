@@ -69,7 +69,9 @@ function timeAgo(dateStr: string): string {
 
 export default function NotificationsPage() {
   const router = useRouter()
-  const [supabase] = useState(() => typeof window !== 'undefined' ? createClient() : null as any)
+  const [supabase] = useState<ReturnType<typeof createClient>>(
+    () => (typeof window !== 'undefined' ? createClient() : null) as ReturnType<typeof createClient>
+  )
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
   const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS)
   const [loadedReal, setLoadedReal] = useState(false)
@@ -92,7 +94,7 @@ export default function NotificationsPage() {
 
       if (error || !data) return
       if (data.length > 0) {
-        const mapped: Notification[] = data.map((n: any) => ({
+        const mapped: Notification[] = data.map(n => ({
           id: n.id,
           type: (n.type ?? 'prediction') as NotifType,
           title: n.title ?? '',
