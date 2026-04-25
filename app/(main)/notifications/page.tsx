@@ -92,7 +92,7 @@ export default function NotificationsPage() {
 
       if (error || !data) return
       if (data.length > 0) {
-        const mapped: Notification[] = data.map(n => ({
+        const mapped: Notification[] = data.map((n: any) => ({
           id: n.id,
           type: (n.type ?? 'prediction') as NotifType,
           title: n.title ?? '',
