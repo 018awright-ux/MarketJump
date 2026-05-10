@@ -1,17 +1,15 @@
 import type { UserLevel } from '@/lib/types'
+import { TIER_CONFIG } from '@/lib/tier'
 
-const LEVEL_CONFIG: Record<UserLevel, { label: string; color: string; icon: string }> = {
-  rookie: { label: 'Rookie', color: '#6b7280', icon: '📈' },
-  analyst: { label: 'Analyst', color: '#40A9FF', icon: '📊' },
-  shark: { label: 'Shark', color: '#00C805', icon: '🦈' },
-}
-
-export default function LevelBadge({ level }: { level: UserLevel }) {
-  const config = LEVEL_CONFIG[level]
+export default function LevelBadge({ level }: { level: UserLevel | string }) {
+  const config = TIER_CONFIG[level as UserLevel] ?? TIER_CONFIG.rookie
   return (
     <span
       className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full"
-      style={{ color: config.color, backgroundColor: `color-mix(in srgb, ${config.color} 15%, transparent)` }}
+      style={{
+        color: config.color,
+        backgroundColor: `color-mix(in srgb, ${config.color} 15%, transparent)`,
+      }}
     >
       <span>{config.icon}</span>
       {config.label}

@@ -6,33 +6,16 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LevelBadge from '@/components/LevelBadge'
+import { TIER_CONFIG, TIER_ORDER, getTier } from '@/lib/tier'
 import type { UserLevel } from '@/lib/types'
-
-const LEVELS: { id: UserLevel; label: string; icon: string; description: string }[] = [
-  {
-    id: 'rookie',
-    label: 'Rookie',
-    icon: '📈',
-    description: 'New to markets. Plain explanations and growing your understanding.',
-  },
-  {
-    id: 'analyst',
-    label: 'Analyst',
-    icon: '📊',
-    description: 'I know the basics. Give me context, data, and real analysis.',
-  },
-  {
-    id: 'shark',
-    label: 'Shark',
-    icon: '🦈',
-    description: 'Full technical language. Raw analysis, contrarian views, no hand-holding.',
-  },
-]
 
 interface Profile {
   id: string
   username: string
   level: UserLevel
+  market_score: number
+  accuracy: number
+  total_predictions: number
 }
 
 interface ToggleSetting {
@@ -58,6 +41,9 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   )
 }
 
+// Tiers a user can manually select as their AI-explanation preference
+const SELECTABLE_TIERS: UserLevel[] = ['rookie', 'analyst', 'shark']
+
 export default function SettingsPage() {
   const router = useRouter()
   const [supabase] = useState<ReturnType<typeof createClient>>(
@@ -67,28 +53,23 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Username edit state
   const [editingUsername, setEditingUsername] = useState(false)
   const [usernameInput, setUsernameInput] = useState('')
   const [savingUsername, setSavingUsername] = useState(false)
   const [usernameError, setUsernameError] = useState('')
 
-  // Level modal state
-  const [levelModalOpen, setLevelModalOpen] = useState(false)
+  const [tierModalOpen, setTierModalOpen] = useState(false)
   const [selectedLevel, setSelectedLevel] = useState<UserLevel | null>(null)
   const [savingLevel, setSavingLevel] = useState(false)
 
-  // Notification toggles
   const [toggles, setToggles] = useState<ToggleSetting[]>([
     { key: 'prediction_results', label: 'Prediction results', value: true },
-    { key: 'new_followers', label: 'New followers', value: true },
-    { key: 'price_alerts', label: 'Price alerts', value: false },
-    { key: 'market_moves', label: 'Market moves', value: false },
+    { key: 'new_followers',      label: 'New followers',      value: true },
+    { key: 'price_alerts',       label: 'Price alerts',       value: false },
+    { key: 'market_moves',       label: 'Market moves',       value: false },
   ])
 
-  useEffect(() => {
-    loadProfile()
-  }, [])
+  useEffect(() => { loadProfile() }, [])
 
   async function loadProfile() {
     setLoading(true)
@@ -97,7 +78,7 @@ export default function SettingsPage() {
 
     const { data } = await supabase
       .from('profiles')
-      .select('id, username, level')
+      .select('id, username, level, market_score, accuracy, total_predictions')
       .eq('id', user.id)
       .single()
 
@@ -137,6 +118,7 @@ export default function SettingsPage() {
 
   async function handleSaveLevel() {
     if (!profile || !selectedLevel) return
+    if (!SELECTABLE_TIERS.includes(selectedLevel)) return
     setSavingLevel(true)
     const { error } = await supabase
       .from('profiles')
@@ -146,7 +128,7 @@ export default function SettingsPage() {
       setProfile(prev => prev ? { ...prev, level: selectedLevel } : prev)
     }
     setSavingLevel(false)
-    setLevelModalOpen(false)
+    setTierModalOpen(false)
   }
 
   function toggleNotif(key: string) {
@@ -157,6 +139,10 @@ export default function SettingsPage() {
     await supabase.auth.signOut()
     router.push('/login')
   }
+
+  const computedTier = profile
+    ? getTier(profile.market_score ?? 0, profile.accuracy ?? 0, profile.total_predictions ?? 0)
+    : null
 
   if (loading) {
     return (
@@ -183,19 +169,13 @@ export default function SettingsPage() {
           <h1 className="text-xl font-black text-white">Settings</h1>
         </div>
 
-        {/* ACCOUNT section */}
+        {/* ACCOUNT */}
         <p className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-widest mb-2 mt-5">Account</p>
         <div className="space-y-2">
-          {/* Username row */}
-          <div
-            className="rounded-2xl border p-4"
-            style={{ background: '#12121a', borderColor: '#2a2a3a' }}
-          >
+          {/* Username */}
+          <div className="rounded-2xl border p-4" style={{ background: '#12121a', borderColor: '#2a2a3a' }}>
             {!editingUsername ? (
-              <button
-                onClick={() => setEditingUsername(true)}
-                className="w-full flex items-center justify-between"
-              >
+              <button onClick={() => setEditingUsername(true)} className="w-full flex items-center justify-between">
                 <span className="text-white font-medium text-sm">Username</span>
                 <div className="flex items-center gap-2">
                   <span className="text-[#6b7280] text-sm">{profile?.username}</span>
@@ -216,9 +196,7 @@ export default function SettingsPage() {
                   placeholder="Enter username"
                   maxLength={30}
                 />
-                {usernameError && (
-                  <p className="text-[#FF3B30] text-xs mb-2">{usernameError}</p>
-                )}
+                {usernameError && <p className="text-[#FF3B30] text-xs mb-2">{usernameError}</p>}
                 <div className="flex gap-2">
                   <button
                     onClick={handleCancelUsername}
@@ -239,13 +217,18 @@ export default function SettingsPage() {
             )}
           </div>
 
-          {/* Level row */}
+          {/* Tier */}
           <button
-            onClick={() => { setSelectedLevel(profile?.level ?? 'rookie'); setLevelModalOpen(true) }}
+            onClick={() => { setSelectedLevel(profile?.level ?? 'rookie'); setTierModalOpen(true) }}
             className="w-full rounded-2xl border p-4 flex items-center justify-between"
             style={{ background: '#12121a', borderColor: '#2a2a3a' }}
           >
-            <span className="text-white font-medium text-sm">Level</span>
+            <div>
+              <span className="text-white font-medium text-sm block">Tier</span>
+              {computedTier && (
+                <span className="text-[#6b7280] text-[10px]">{computedTier.threshold}</span>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               {profile && <LevelBadge level={profile.level} />}
               <svg className="w-4 h-4 text-[#6b7280]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -255,7 +238,7 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        {/* NOTIFICATIONS section */}
+        {/* NOTIFICATIONS */}
         <p className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-widest mb-2 mt-5">Notifications</p>
         <div className="space-y-2">
           {toggles.map(t => (
@@ -270,13 +253,13 @@ export default function SettingsPage() {
           ))}
         </div>
 
-        {/* APP section */}
+        {/* APP */}
         <p className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-widest mb-2 mt-5">App</p>
         <div className="space-y-2">
           {[
-            { label: 'Privacy Policy', href: '#' },
+            { label: 'Privacy Policy',  href: '#' },
             { label: 'Terms of Service', href: '#' },
-            { label: 'Rate the app', href: '#' },
+            { label: 'Rate the app',    href: '#' },
           ].map(item => (
             <a
               key={item.label}
@@ -294,7 +277,7 @@ export default function SettingsPage() {
           ))}
         </div>
 
-        {/* DANGER ZONE section */}
+        {/* DANGER ZONE */}
         <p className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-widest mb-2 mt-5">Danger Zone</p>
         <button
           onClick={handleSignOut}
@@ -308,22 +291,22 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      {/* Level modal */}
-      {levelModalOpen && (
+      {/* Tier modal */}
+      {tierModalOpen && (
         <div
           className="fixed inset-0 z-50 flex flex-col justify-end"
           style={{ background: 'rgba(0,0,0,0.75)' }}
-          onClick={e => { if (e.target === e.currentTarget) setLevelModalOpen(false) }}
+          onClick={e => { if (e.target === e.currentTarget) setTierModalOpen(false) }}
         >
           <div
-            className="rounded-t-3xl border-t overflow-y-auto max-h-[80vh]"
+            className="rounded-t-3xl border-t overflow-y-auto max-h-[85vh]"
             style={{ background: 'rgba(8,12,20,0.98)', borderColor: 'rgba(201,168,76,0.2)' }}
           >
             <div className="p-6">
               <div className="flex items-center justify-between mb-1">
-                <h2 className="text-white font-black text-lg">Change Level</h2>
+                <h2 className="text-white font-black text-lg">Tier System</h2>
                 <button
-                  onClick={() => setLevelModalOpen(false)}
+                  onClick={() => setTierModalOpen(false)}
                   className="text-[#6b7280] hover:text-white transition-colors"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -331,47 +314,83 @@ export default function SettingsPage() {
                   </svg>
                 </button>
               </div>
-              <p className="text-[#6b7280] text-sm mb-5">This shapes how the AI explains market moves to you.</p>
+              <p className="text-[#6b7280] text-sm mb-5">
+                Tiers recalculate every Friday from your score + accuracy.
+                Leader and Guru are auto-earned — they can't be manually set.
+              </p>
 
               <div className="space-y-3 mb-6">
-                {LEVELS.map(l => (
-                  <button
-                    key={l.id}
-                    onClick={() => setSelectedLevel(l.id)}
-                    className="w-full text-left rounded-2xl border p-4 transition-all"
-                    style={
-                      selectedLevel === l.id
-                        ? { borderColor: '#C9A84C', background: 'rgba(201,168,76,0.1)' }
-                        : { borderColor: '#2a2a3a', background: '#12121a' }
-                    }
-                  >
-                    <div className="flex items-center gap-3 mb-1.5">
-                      <span className="text-2xl">{l.icon}</span>
-                      <span className="font-bold text-white">{l.label}</span>
-                      {selectedLevel === l.id && (
-                        <span
-                          className="ml-auto w-5 h-5 rounded-full flex items-center justify-center"
-                          style={{ background: '#C9A84C' }}
-                        >
-                          <svg className="w-3 h-3 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[#6b7280] text-sm leading-relaxed">{l.description}</p>
-                  </button>
-                ))}
+                {TIER_ORDER.map(tierId => {
+                  const t = TIER_CONFIG[tierId]
+                  const isSelectable = SELECTABLE_TIERS.includes(tierId)
+                  const isActive    = profile?.level === tierId
+                  const isComputed  = computedTier?.tier === tierId
+                  const isSelected  = selectedLevel === tierId
+
+                  return (
+                    <button
+                      key={tierId}
+                      onClick={() => isSelectable && setSelectedLevel(tierId)}
+                      disabled={!isSelectable}
+                      className="w-full text-left rounded-2xl border p-4 transition-all disabled:cursor-default"
+                      style={
+                        isActive || (isSelected && isSelectable)
+                          ? { borderColor: t.color, background: `color-mix(in srgb, ${t.color} 10%, #12121a)` }
+                          : { borderColor: '#2a2a3a', background: '#12121a' }
+                      }
+                    >
+                      <div className="flex items-center gap-3 mb-1">
+                        <span className="text-xl">{t.icon}</span>
+                        <span className="font-bold text-white">{t.label}</span>
+                        <div className="ml-auto flex items-center gap-1.5">
+                          {isComputed && (
+                            <span
+                              className="text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider"
+                              style={{ background: `${t.color}25`, color: t.color }}
+                            >
+                              Your rank
+                            </span>
+                          )}
+                          {!isSelectable && (
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider bg-[#2a2a3a] text-[#6b7280]">
+                              Auto-earned
+                            </span>
+                          )}
+                          {isSelected && isSelectable && (
+                            <span
+                              className="w-5 h-5 rounded-full flex items-center justify-center"
+                              style={{ background: t.color }}
+                            >
+                              <svg className="w-3 h-3 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-sm font-semibold mb-0.5" style={{ color: t.color }}>{t.description}</p>
+                      <p className="text-[#6b7280] text-xs">{t.threshold}</p>
+                    </button>
+                  )
+                })}
               </div>
 
               <button
                 onClick={handleSaveLevel}
-                disabled={savingLevel || selectedLevel === profile?.level}
-                className="w-full py-3.5 rounded-xl font-black text-sm text-black transition-opacity disabled:opacity-50 pb-safe"
+                disabled={
+                  savingLevel ||
+                  !selectedLevel ||
+                  !SELECTABLE_TIERS.includes(selectedLevel) ||
+                  selectedLevel === profile?.level
+                }
+                className="w-full py-3.5 rounded-xl font-black text-sm text-black transition-opacity disabled:opacity-40"
                 style={{ background: 'linear-gradient(135deg, #C9A84C, #e8c96d)' }}
               >
-                {savingLevel ? 'Saving...' : 'Save Level'}
+                {savingLevel ? 'Saving...' : 'Set AI Level'}
               </button>
+              <p className="text-[#4b5563] text-[10px] text-center mt-2">
+                Sets the AI explanation style. Your earned rank updates automatically every Friday.
+              </p>
             </div>
           </div>
         </div>

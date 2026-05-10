@@ -1,4 +1,4 @@
-export type UserLevel = 'rookie' | 'analyst' | 'shark'
+export type UserLevel = 'rookie' | 'analyst' | 'shark' | 'leader' | 'guru'
 
 export type Sector =
   | 'Tech'

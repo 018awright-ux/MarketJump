@@ -3,39 +3,22 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { UserLevel, Sector } from '@/lib/types'
-
-const LEVELS: { id: UserLevel; label: string; icon: string; description: string }[] = [
-  {
-    id: 'rookie',
-    label: 'Rookie',
-    icon: '📈',
-    description: 'New to markets. I want to learn market concepts with plain explanations and growing my understanding.',
-  },
-  {
-    id: 'analyst',
-    label: 'Analyst',
-    icon: '📊',
-    description: 'I know the basics. Give me context, data, and real analysis. Challenge my thinking when the data says otherwise.',
-  },
-  {
-    id: 'shark',
-    label: 'Shark',
-    icon: '🦈',
-    description: 'Full technical language. I want raw analysis, contrarian views, and no hand-holding.',
-  },
-]
+import { TIER_CONFIG, TIER_ORDER } from '@/lib/tier'
+import type { Sector } from '@/lib/types'
 
 const SECTORS: Sector[] = [
   'Tech', 'Energy', 'Healthcare', 'Finance', 'Crypto',
   'Commodities', 'Real Estate', 'Macro', 'Options', 'Index Funds',
 ]
 
+type Step = 'tiers' | 'brand' | 'interests'
+
 export default function OnboardingPage() {
   const router = useRouter()
-  const supabase = createClient()
-  const [step, setStep] = useState<'level' | 'brand' | 'interests'>('level')
-  const [level, setLevel] = useState<UserLevel | null>(null)
+  const [supabase] = useState<ReturnType<typeof createClient>>(
+    () => (typeof window !== 'undefined' ? createClient() : null) as ReturnType<typeof createClient>
+  )
+  const [step, setStep] = useState<Step>('tiers')
   const [brandName, setBrandName] = useState('')
   const [brandNameError, setBrandNameError] = useState('')
   const [interests, setInterests] = useState<Sector[]>([])
@@ -49,13 +32,13 @@ export default function OnboardingPage() {
   }
 
   async function handleFinish() {
-    if (!level || interests.length === 0) return
+    if (interests.length === 0) return
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
 
     await supabase.from('profiles').update({
-      level,
+      level: 'rookie',          // everyone starts at Rookie; cron upgrades based on score
       interests,
       brand_name: brandName || null,
       onboarding_complete: true,
@@ -65,12 +48,15 @@ export default function OnboardingPage() {
     router.refresh()
   }
 
+  const stepIndex: Record<Step, number> = { tiers: 0, brand: 1, interests: 2 }
+  const currentIndex = stepIndex[step]
+
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex flex-col">
       {/* Header */}
       <div className="text-center pt-12 pb-6 px-6">
         <div className="text-3xl font-black tracking-tight mb-1">
-          <span className="text-[#00C805]">Market</span>
+          <span className="text-[#C9A84C]">Market</span>
           <span className="text-white">Jump</span>
         </div>
         <p className="text-[#6b7280] text-sm">Let's personalize your experience</p>
@@ -78,59 +64,95 @@ export default function OnboardingPage() {
 
       {/* Progress */}
       <div className="flex gap-2 px-6 mb-8">
-        <div className="flex-1 h-1 rounded-full bg-[#00C805]" />
-        <div className={`flex-1 h-1 rounded-full transition-colors ${step === 'brand' || step === 'interests' ? 'bg-[#00C805]' : 'bg-[#2a2a3a]'}`} />
-        <div className={`flex-1 h-1 rounded-full transition-colors ${step === 'interests' ? 'bg-[#00C805]' : 'bg-[#2a2a3a]'}`} />
+        {[0, 1, 2].map(i => (
+          <div
+            key={i}
+            className="flex-1 h-1 rounded-full transition-colors"
+            style={{ background: i <= currentIndex ? '#C9A84C' : '#2a2a3a' }}
+          />
+        ))}
       </div>
 
       <div className="flex-1 px-6 overflow-y-auto">
         {/* Back button */}
-        {step !== 'level' && (
+        {step !== 'tiers' && (
           <button
-            onClick={() => setStep(step === 'interests' ? 'brand' : 'level')}
+            onClick={() => setStep(step === 'interests' ? 'brand' : 'tiers')}
             className="text-[#6b7280] text-sm mb-4 hover:text-white"
           >
             ← Back
           </button>
         )}
 
-        {step === 'level' && (
+        {/* ── STEP 1: Tier Showcase ── */}
+        {step === 'tiers' && (
           <div className="animate-slide-up">
-            <h2 className="text-xl font-bold text-white mb-2">What's your level?</h2>
-            <p className="text-[#6b7280] text-sm mb-6">This shapes how our AI explains market moves to you. You can always change it later.</p>
+            <h2 className="text-xl font-bold text-white mb-1">How you rank up</h2>
+            <p className="text-[#6b7280] text-sm mb-6">
+              Your tier is earned automatically from your market score and accuracy.
+              Everyone starts as a Rookie — the grind begins now.
+            </p>
+
             <div className="space-y-3">
-              {LEVELS.map(l => (
-                <button
-                  key={l.id}
-                  onClick={() => setLevel(l.id)}
-                  className={`w-full text-left rounded-2xl border p-5 transition-all ${
-                    level === l.id
-                      ? 'border-[#00C805] bg-[#00C805]/10'
-                      : 'border-[#2a2a3a] bg-[#12121a] hover:border-[#3a3a4a]'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-2xl">{l.icon}</span>
-                    <span className="font-bold text-white text-lg">{l.label}</span>
-                    {level === l.id && (
-                      <span className="ml-auto w-5 h-5 rounded-full bg-[#00C805] flex items-center justify-center">
-                        <svg className="w-3 h-3 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </span>
-                    )}
+              {TIER_ORDER.map((tierId, idx) => {
+                const t = TIER_CONFIG[tierId]
+                const isGuru = tierId === 'guru'
+                return (
+                  <div
+                    key={tierId}
+                    className="rounded-2xl border p-4"
+                    style={{
+                      borderColor: idx === 0 ? t.color : `${t.color}40`,
+                      background: idx === 0
+                        ? `color-mix(in srgb, ${t.color} 12%, #12121a)`
+                        : '#12121a',
+                    }}
+                  >
+                    <div className="flex items-center gap-3 mb-1.5">
+                      <span className="text-2xl">{t.icon}</span>
+                      <span className="font-black text-white">{t.label}</span>
+                      {idx === 0 && (
+                        <span
+                          className="ml-auto text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider"
+                          style={{ background: `${t.color}25`, color: t.color }}
+                        >
+                          You start here
+                        </span>
+                      )}
+                      {isGuru && (
+                        <span
+                          className="ml-auto text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider"
+                          style={{ background: `${t.color}25`, color: t.color }}
+                        >
+                          Losable
+                        </span>
+                      )}
+                    </div>
+                    <p
+                      className="text-sm mb-1"
+                      style={{ color: t.color, fontWeight: 700 }}
+                    >
+                      {t.description}
+                    </p>
+                    <p className="text-[#6b7280] text-xs">{t.threshold}</p>
                   </div>
-                  <p className="text-[#6b7280] text-sm leading-relaxed">{l.description}</p>
-                </button>
-              ))}
+                )
+              })}
             </div>
+
+            <p className="text-[#4b5563] text-xs text-center mt-5">
+              Tiers recalculate every Friday. Guru can be lost if you drop below 7,000 pts, 50 calls, or 60% accuracy.
+            </p>
           </div>
         )}
 
+        {/* ── STEP 2: Brand Name ── */}
         {step === 'brand' && (
           <div className="animate-slide-up">
             <h2 className="text-xl font-bold text-white mb-2">Claim your brand name</h2>
-            <p className="text-[#6b7280] text-sm mb-6">This is your identity on MarketJump. Others will follow your brand and track your moves.</p>
+            <p className="text-[#6b7280] text-sm mb-6">
+              This is your identity on MarketJump. Others will follow your brand and track your moves.
+            </p>
 
             <div className="mb-2">
               <input
@@ -181,14 +203,19 @@ export default function OnboardingPage() {
               ))}
             </div>
 
-            <p className="text-[#6b7280] text-xs text-center mt-4">You can always change this later in your profile settings.</p>
+            <p className="text-[#6b7280] text-xs text-center mt-4">
+              You can always change this later in your profile settings.
+            </p>
           </div>
         )}
 
+        {/* ── STEP 3: Interests ── */}
         {step === 'interests' && (
           <div className="animate-slide-up">
             <h2 className="text-xl font-bold text-white mb-2">Pick your markets</h2>
-            <p className="text-[#6b7280] text-sm mb-6">Select any sectors you want to track. This shapes your Jump Feed.</p>
+            <p className="text-[#6b7280] text-sm mb-6">
+              Select any sectors you want to track. This shapes your Jump Feed.
+            </p>
             <div className="grid grid-cols-3 gap-3">
               {SECTORS.map(sector => (
                 <button
@@ -196,7 +223,7 @@ export default function OnboardingPage() {
                   onClick={() => toggleInterest(sector)}
                   className={`rounded-xl border py-3 px-2 text-sm font-medium transition-all ${
                     interests.includes(sector)
-                      ? 'border-[#00C805] bg-[#00C805]/10 text-[#00C805]'
+                      ? 'border-[#C9A84C] bg-[#C9A84C]/10 text-[#C9A84C]'
                       : 'border-[#2a2a3a] bg-[#12121a] text-[#6b7280] hover:border-[#3a3a4a] hover:text-white'
                   }`}
                 >
@@ -205,7 +232,7 @@ export default function OnboardingPage() {
               ))}
             </div>
             {interests.length > 0 && (
-              <p className="text-[#00C805] text-xs mt-4">{interests.length} selected</p>
+              <p className="text-[#C9A84C] text-xs mt-4">{interests.length} selected</p>
             )}
           </div>
         )}
@@ -213,22 +240,14 @@ export default function OnboardingPage() {
 
       {/* Bottom CTA */}
       <div className="p-6 pt-4 space-y-3">
-        {step === 'level' && (
-          <>
-            <button
-              onClick={() => setStep('brand')}
-              disabled={!level}
-              className="w-full bg-[#00C805] text-black font-bold py-4 rounded-2xl text-base hover:bg-[#00e006] transition-colors disabled:opacity-40"
-            >
-              Continue →
-            </button>
-            <button
-              onClick={() => setStep('brand')}
-              className="w-full text-[#6b7280] text-sm py-2 hover:text-white transition-colors"
-            >
-              Skip for now
-            </button>
-          </>
+        {step === 'tiers' && (
+          <button
+            onClick={() => setStep('brand')}
+            className="w-full text-black font-bold py-4 rounded-2xl text-base transition-colors"
+            style={{ background: 'linear-gradient(135deg, #C9A84C, #e8c96d)' }}
+          >
+            Let's go →
+          </button>
         )}
 
         {step === 'brand' && (
@@ -241,7 +260,8 @@ export default function OnboardingPage() {
                 }
                 setStep('interests')
               }}
-              className="w-full bg-[#00C805] text-black font-bold py-4 rounded-2xl text-base hover:bg-[#00e006] transition-colors"
+              className="w-full text-black font-bold py-4 rounded-2xl text-base transition-colors"
+              style={{ background: 'linear-gradient(135deg, #C9A84C, #e8c96d)' }}
             >
               Continue →
             </button>
@@ -258,8 +278,9 @@ export default function OnboardingPage() {
           <>
             <button
               onClick={handleFinish}
-              disabled={loading}
-              className="w-full bg-[#00C805] text-black font-bold py-4 rounded-2xl text-base hover:bg-[#00e006] transition-colors disabled:opacity-40"
+              disabled={loading || interests.length === 0}
+              className="w-full text-black font-bold py-4 rounded-2xl text-base transition-colors disabled:opacity-40"
+              style={{ background: 'linear-gradient(135deg, #C9A84C, #e8c96d)' }}
             >
               {loading ? 'Setting up...' : 'Jump In →'}
             </button>
