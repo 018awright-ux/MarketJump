@@ -6,6 +6,15 @@ import { Suspense } from 'react'
 
 const NAV_ITEMS = [
   {
+    href: '/awards',
+    label: 'Awards',
+    icon: (active: boolean) => (
+      <svg className={`w-6 h-6 ${active ? 'text-[#C9A84C]' : 'text-[#6b7280]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 2.5 : 2} d="M5 3h14M5 3a2 2 0 00-2 2v2a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2M5 3v0M9 9v7m6-7v7M7 21h10" />
+      </svg>
+    ),
+  },
+  {
     href: '/explore',
     label: 'Markets',
     icon: (active: boolean) => (
@@ -66,14 +75,14 @@ function BottomNavInner() {
   const pathname = usePathname()
 
   return (
-    <div className="flex items-center justify-around py-2 px-2">
+    <div className="flex items-center justify-around py-2 px-1">
       {NAV_ITEMS.map(item => {
         const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
         return (
           <Link
             key={item.href}
             href={item.href}
-            className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors min-w-[56px]"
+            className="flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors min-w-[44px]"
           >
             {item.icon(active)}
             <span className={`text-[10px] font-medium ${active ? 'text-[#C9A84C]' : 'text-[#6b7280]'}`}>

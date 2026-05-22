@@ -239,7 +239,11 @@ export default function SettingsPage() {
         </div>
 
         {/* NOTIFICATIONS */}
-        <p className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-widest mb-2 mt-5">Notifications</p>
+        <p className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-widest mb-1 mt-5">Notifications</p>
+        <p className="text-[#4b5563] text-[11px] mb-3 leading-relaxed">
+          Weekly Market Judgment Day + Annual Awards Season alerts only.
+          We respect your attention.
+        </p>
         <div className="space-y-2">
           {toggles.map(t => (
             <div
