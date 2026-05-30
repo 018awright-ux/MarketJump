@@ -7,7 +7,9 @@ import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
   const router = useRouter()
-  const supabase = createClient()
+  const [supabase] = useState<ReturnType<typeof createClient>>(() =>
+    typeof window !== 'undefined' ? createClient() : null as unknown as ReturnType<typeof createClient>
+  )
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')

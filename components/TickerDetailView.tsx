@@ -34,7 +34,9 @@ interface Props {
 }
 
 export default function TickerDetailView({ ticker, contextBadge, onClose }: Props) {
-  const supabase = createClient()
+  const [supabase] = useState<ReturnType<typeof createClient>>(() =>
+    typeof window !== 'undefined' ? createClient() : null as unknown as ReturnType<typeof createClient>
+  )
   const [items, setItems] = useState<FeedItem[]>([])
   const [index, setIndex] = useState(0)
   const [history, setHistory] = useState<number[]>([])

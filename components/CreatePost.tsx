@@ -160,7 +160,9 @@ async function splitVideo(file: File, onProgress: (msg: string) => void): Promis
 }
 
 export default function CreatePost({ onClose, onPosted }: CreatePostProps) {
-  const supabase = createClient()
+  const [supabase] = useState<ReturnType<typeof createClient>>(() =>
+    typeof window !== 'undefined' ? createClient() : null as unknown as ReturnType<typeof createClient>
+  )
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
