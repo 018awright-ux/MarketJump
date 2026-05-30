@@ -6,15 +6,6 @@ import { Suspense } from 'react'
 
 const NAV_ITEMS = [
   {
-    href: '/awards',
-    label: 'Awards',
-    icon: (active: boolean) => (
-      <svg className={`w-6 h-6 ${active ? 'text-[#C9A84C]' : 'text-[#6b7280]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 2.5 : 2} d="M5 3h14M5 3a2 2 0 00-2 2v2a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2M5 3v0M9 9v7m6-7v7M7 21h10" />
-      </svg>
-    ),
-  },
-  {
     href: '/explore',
     label: 'Markets',
     icon: (active: boolean) => (
@@ -99,9 +90,9 @@ export default function BottomNav() {
   return (
     <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg backdrop-blur-xl border-t border-[#C9A84C]/20 z-50" style={{ background: 'rgba(8,12,20,0.96)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       <Suspense fallback={
-        <div className="flex items-center justify-around py-2 px-2">
+        <div className="flex items-center justify-around py-2 px-1">
           {NAV_ITEMS.map(item => (
-            <div key={item.href} className="flex flex-col items-center gap-1 py-1 px-3 min-w-[56px]">
+            <div key={item.href} className="flex flex-col items-center gap-0.5 py-1 px-3 min-w-[56px]">
               {item.icon(false)}
               <span className="text-[10px] font-medium text-[#6b7280]">{item.label}</span>
             </div>
