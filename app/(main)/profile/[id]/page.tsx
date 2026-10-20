@@ -7,6 +7,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LevelBadge from '@/components/LevelBadge'
 import FollowButton from '@/components/FollowButton'
+import AudienceStats from '@/components/AudienceStats'
 import type { UserLevel } from '@/lib/types'
 
 interface BrandProfile {
@@ -295,18 +296,7 @@ function PublicBrandContent() {
             ))}
           </div>
 
-          {/* Tappable Audience + Following row */}
-          <div className="flex justify-center gap-6 mb-4">
-            <button onClick={() => router.push(`/profile/${id}/followers`)} className="text-center">
-              <div className="text-white font-black text-sm">{profile.followers.toLocaleString()}</div>
-              <div className="text-[#6b7280] text-[10px] uppercase tracking-wider">Audience</div>
-            </button>
-            <div className="w-px bg-[#2a2a3a]" />
-            <button onClick={() => router.push(`/profile/${id}/following`)} className="text-center">
-              <div className="text-white font-black text-sm">{profile.following.toLocaleString()}</div>
-              <div className="text-[#6b7280] text-[10px] uppercase tracking-wider">Following</div>
-            </button>
-          </div>
+          <AudienceStats profileId={id} followers={profile.followers} following={profile.following} className="mb-4" />
 
           {/* Follow button (hidden on own profile) */}
           {!isOwnProfile && (

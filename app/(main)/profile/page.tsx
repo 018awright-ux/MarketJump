@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LevelBadge from '@/components/LevelBadge'
+import AudienceStats from '@/components/AudienceStats'
 import TickerDetailView from '@/components/TickerDetailView'
 import PullIndicator from '@/components/PullIndicator'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
@@ -537,6 +538,9 @@ export default function BrandPage() {
             </div>
           </div>
 
+          {/* Audience + Following — tap to open the lists */}
+          <AudienceStats profileId={profile.id} followers={profile.followers} following={profile.following} className="mb-3" />
+
           {/* B. Brand Stats grid */}
           <div className="grid grid-cols-3 gap-2 mb-3">
             {[
@@ -562,24 +566,6 @@ export default function BrandPage() {
             ))}
           </div>
 
-          {/* Tappable Audience + Following row */}
-          <div className="flex gap-4 mt-2 mb-1">
-            <button
-              onClick={() => router.push(`/profile/${profile.id}/followers`)}
-              className="text-center"
-            >
-              <div className="text-white font-black text-sm">{profile.followers}</div>
-              <div className="text-[#6b7280] text-[10px] uppercase tracking-wider">Audience</div>
-            </button>
-            <div className="w-px bg-[#2a2a3a]" />
-            <button
-              onClick={() => router.push(`/profile/${profile.id}/following`)}
-              className="text-center"
-            >
-              <div className="text-white font-black text-sm">{profile.following}</div>
-              <div className="text-[#6b7280] text-[10px] uppercase tracking-wider">Following</div>
-            </button>
-          </div>
         </div>
 
         {/* C. Weekly Score Update Card */}

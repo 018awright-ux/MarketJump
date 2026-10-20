@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import type { UserLevel } from '@/lib/types'
 import LevelBadge from '@/components/LevelBadge'
 import FollowButton from '@/components/FollowButton'
+import AudienceStats from '@/components/AudienceStats'
 
 interface BrandProfile {
   id: string
@@ -221,17 +222,7 @@ export default async function PublicBrandPage({
         </div>
 
         {/* Audience + Following */}
-        <div className="flex justify-center gap-6 mt-4">
-          <a href={`/profile/${profile.id}/followers`} className="text-center">
-            <div className="text-white font-black text-sm">{(profile.followers ?? 0).toLocaleString()}</div>
-            <div className="text-[#6b7280] text-[10px] uppercase tracking-wider">Audience</div>
-          </a>
-          <div className="w-px bg-[#2a2a3a]" />
-          <a href={`/profile/${profile.id}/following`} className="text-center">
-            <div className="text-white font-black text-sm">{(profile.following ?? 0).toLocaleString()}</div>
-            <div className="text-[#6b7280] text-[10px] uppercase tracking-wider">Following</div>
-          </a>
-        </div>
+        <AudienceStats profileId={profile.id} followers={profile.followers} following={profile.following} className="mt-4" />
 
         <div className="mt-4">
           <FollowButton targetId={profile.id} />
