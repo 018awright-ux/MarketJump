@@ -57,8 +57,8 @@ begin
              coalesce(p.brand_name, p.username) || ' joined your Audience',
              '/profile/' || new.follower_id
       from public.profiles p where p.id = new.follower_id;
-    exception when undefined_table then
-      null; -- notifications table not created yet (supabase-schema-final.sql)
+    exception when others then
+      null; -- never let a notification problem block the follow itself
     end;
     return new;
   elsif tg_op = 'DELETE' then
