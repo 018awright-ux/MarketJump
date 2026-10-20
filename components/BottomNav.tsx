@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Suspense } from 'react'
 
-const NAV_ITEMS: { href: string; label: string; primary?: boolean; icon: (active: boolean) => React.ReactNode }[] = [
+const NAV_ITEMS = [
   {
     href: '/explore',
     label: 'Markets',
@@ -43,21 +43,6 @@ const NAV_ITEMS: { href: string; label: string; primary?: boolean; icon: (active
     ),
   },
   {
-    href: '/create',
-    label: 'Create',
-    primary: true,
-    icon: () => (
-      <span
-        className="w-11 h-8 rounded-xl flex items-center justify-center"
-        style={{ background: 'linear-gradient(135deg, #1B3066 0%, #C9A84C 100%)', boxShadow: '0 0 12px rgba(201,168,76,0.35)' }}
-      >
-        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 5v14M5 12h14" />
-        </svg>
-      </span>
-    ),
-  },
-  {
     href: '/leaderboard',
     label: 'Leaders',
     icon: (active: boolean) => (
@@ -88,16 +73,12 @@ function BottomNavInner() {
           <Link
             key={item.href}
             href={item.href}
-            aria-label={item.label}
-            className="flex flex-col items-center gap-0.5 py-1 px-1 rounded-xl transition-all min-w-[44px] active:scale-90"
+            className="flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors min-w-[44px]"
           >
             {item.icon(active)}
-            {/* Create is icon-only, like TikTok's + */}
-            {!item.primary && (
-              <span className={`text-[10px] font-medium ${active ? 'text-[#C9A84C]' : 'text-[#6b7280]'}`}>
-                {item.label}
-              </span>
-            )}
+            <span className={`text-[10px] font-medium ${active ? 'text-[#C9A84C]' : 'text-[#6b7280]'}`}>
+              {item.label}
+            </span>
           </Link>
         )
       })}
@@ -111,9 +92,9 @@ export default function BottomNav() {
       <Suspense fallback={
         <div className="flex items-center justify-around py-2 px-1">
           {NAV_ITEMS.map(item => (
-            <div key={item.href} className="flex flex-col items-center gap-0.5 py-1 px-1 min-w-[44px]">
+            <div key={item.href} className="flex flex-col items-center gap-0.5 py-1 px-3 min-w-[56px]">
               {item.icon(false)}
-              {!item.primary && <span className="text-[10px] font-medium text-[#6b7280]">{item.label}</span>}
+              <span className="text-[10px] font-medium text-[#6b7280]">{item.label}</span>
             </div>
           ))}
         </div>

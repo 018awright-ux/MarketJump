@@ -20,7 +20,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         {/* Row 1: live ticker tape */}
         <TickerTape />
 
-        {/* Row 2: AI button (left) + notification bell + settings gear (right)
+        {/* Row 2: AI button (left) + create + notification bell + settings gear (right)
             Fixed h-11 (44px, border included) so header = 36 + 44 = 80px, matching <main>'s paddingTop */}
         <div
           className="flex items-center justify-between px-4 h-11 gap-1 border-b border-[#C9A84C]/10"
@@ -29,8 +29,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           {/* AI button — left side */}
           <AIButton inline />
 
-          {/* Right side: bell + gear */}
+          {/* Right side: create + bell + gear */}
           <div className="flex items-center gap-1">
+            <Link
+              href="/create"
+              aria-label="Create a Move"
+              className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-xl active:scale-90 transition-all"
+              style={{ background: '#C9A84C', boxShadow: '0 0 4px rgba(201,168,76,0.5)' }}
+            >
+              <svg className="w-5 h-5 text-[#0a0a12]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 5v14M5 12h14" />
+              </svg>
+            </Link>
             <Link
               href="/notifications"
               className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-white/5 active:bg-white/10"

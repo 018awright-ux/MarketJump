@@ -9,7 +9,7 @@ export default function CreatePage() {
   const router = useRouter()
 
   function close() {
-    // Opened via the nav + button there's history to go back to; deep links fall back to the feed
+    // Opened via the header + button there's history to go back to; deep links fall back to the feed
     if (window.history.length > 1) router.back()
     else router.replace('/feed')
   }

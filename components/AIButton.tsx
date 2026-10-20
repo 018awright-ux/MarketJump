@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 
 interface AIButtonProps {
@@ -63,8 +64,10 @@ export default function AIButton({ inline = false }: AIButtonProps) {
         </button>
       )}
 
-      {/* Coming Soon modal */}
-      {open && (
+      {/* Coming Soon modal — portaled to <body>: the header's backdrop-filter/transform
+          makes it the containing block for fixed children, which squashed this sheet
+          into the 44px header row so only the Close button showed */}
+      {open && createPortal(
         <div
           className="fixed inset-0 z-[300] flex items-end justify-center"
           onClick={() => setOpen(false)}
@@ -118,7 +121,8 @@ export default function AIButton({ inline = false }: AIButtonProps) {
               Close
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )
