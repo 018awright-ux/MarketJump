@@ -20,9 +20,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         {/* Row 1: live ticker tape */}
         <TickerTape />
 
-        {/* Row 2: AI button (left) + notification bell + settings gear (right) */}
+        {/* Row 2: AI button (left) + notification bell + settings gear (right)
+            Fixed h-11 (44px, border included) so header = 36 + 44 = 80px, matching <main>'s paddingTop */}
         <div
-          className="flex items-center justify-between px-4 py-2 gap-1 border-b border-[#C9A84C]/10"
+          className="flex items-center justify-between px-4 h-11 gap-1 border-b border-[#C9A84C]/10"
           style={{ background: 'rgba(8,12,20,0.88)', backdropFilter: 'blur(12px)' }}
         >
           {/* AI button — left side */}

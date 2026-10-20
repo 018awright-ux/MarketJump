@@ -20,10 +20,11 @@ export default function AIButton({ inline = false }: AIButtonProps) {
         /* Inline header button — no fixed positioning */
         <button
           onClick={() => setOpen(true)}
-          className="w-9 h-9 flex items-center justify-center rounded-xl active:scale-90 transition-all hover:bg-white/5 active:bg-white/10"
+          className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-xl active:scale-90 transition-all hover:bg-white/5 active:bg-white/10"
           style={{
             background: 'linear-gradient(135deg, #1B3066 0%, #6d28d9 100%)',
-            boxShadow: '0 0 10px rgba(109,40,217,0.4)',
+            // Glow must stay within the 44px header row's 4px vertical clearance
+            boxShadow: '0 0 4px rgba(109,40,217,0.5)',
             border: '1.5px solid rgba(109,40,217,0.4)',
           }}
           aria-label="AI Assistant"
