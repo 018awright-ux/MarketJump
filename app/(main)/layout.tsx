@@ -27,7 +27,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           style={{ background: 'rgba(8,12,20,0.88)', backdropFilter: 'blur(12px)' }}
         >
           {/* AI button — left side */}
-          <AIButton inline />
+          <AIButton />
 
           {/* Right side: create + bell + gear */}
           <div className="flex items-center gap-1">

@@ -14,6 +14,9 @@ create table if not exists public.follows (
 
 alter table public.follows enable row level security;
 
+-- Clear any self-follows first or the constraint below fails to apply
+delete from public.follows where follower_id = following_id;
+
 do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'follows_no_self_follow') then
     alter table public.follows add constraint follows_no_self_follow check (follower_id <> following_id);
@@ -47,6 +50,16 @@ begin
   if tg_op = 'INSERT' then
     update public.profiles set followers = followers + 1 where id = new.following_id;
     update public.profiles set following = following + 1 where id = new.follower_id;
+    -- "New Audience member" notification for the followed user
+    begin
+      insert into public.notifications (user_id, type, title, href)
+      select new.following_id, 'follow',
+             coalesce(p.brand_name, p.username) || ' joined your Audience',
+             '/profile/' || new.follower_id
+      from public.profiles p where p.id = new.follower_id;
+    exception when undefined_table then
+      null; -- notifications table not created yet (supabase-schema-final.sql)
+    end;
     return new;
   elsif tg_op = 'DELETE' then
     update public.profiles set followers = greatest(followers - 1, 0) where id = old.following_id;

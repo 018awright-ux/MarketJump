@@ -10,6 +10,7 @@ import VideoCard from '@/components/VideoCard'
 import ExpandedCard from '@/components/ExpandedCard'
 import CreatePost from '@/components/CreatePost'
 import CommentsSheet from '@/components/CommentsSheet'
+import { setAIFocus } from '@/lib/aiFocus'
 
 type FeedItem =
   | { kind: 'card'; data: JumpCardType }
@@ -27,6 +28,9 @@ type FeedFilter =
   | 'commented'
   | 'bullish'
   | 'bearish'
+
+// Filters whose feed can include the viewer's own new Move
+const POST_FILTERS: FeedFilter[] = ['all', 'creators', 'recent', 'commented']
 
 const FILTERS: { id: FeedFilter; label: string; emoji: string }[] = [
   { id: 'all',        label: 'All',         emoji: '⚡' },
@@ -135,8 +139,7 @@ export default function FeedPage() {
       if (justPosted) {
         // Caches predate the new post — reload, then pin the new post to the top
         FILTERS.forEach(f => { try { sessionStorage.removeItem(cacheKey(f.id)) } catch {} })
-        await loadFeed(false, activeFilterRef.current)
-        await prependNewestPost()
+        await showOwnNewPost(true)
       } else if (!readCache(activeFilterRef.current)) {
         await loadFeed(false, activeFilterRef.current)
       }
@@ -199,6 +202,18 @@ export default function FeedPage() {
     else setLoading(false)
   }
 
+  async function showOwnNewPost(reload = false) {
+    // Your own Move doesn't belong in Following (or a cards-only filter) — show it under All
+    if (!POST_FILTERS.includes(activeFilterRef.current)) {
+      setActiveFilter('all')
+      activeFilterRef.current = 'all'
+      try { sessionStorage.setItem(FILTER_STORAGE_KEY, 'all') } catch {}
+      reload = true
+    }
+    if (reload) await loadFeed(false, activeFilterRef.current)
+    await prependNewestPost()
+  }
+
   async function prependNewestPost() {
     try {
       // Fetch the freshest post (the one just created) and prepend it
@@ -258,6 +273,25 @@ export default function FeedPage() {
 
   const currentItem = feed[index]
   const currentTicker = currentItem?.data?.ticker ?? ''
+
+  // Tell the header AI button which stock is on screen
+  useEffect(() => {
+    if (!currentItem) return setAIFocus(null)
+    if (currentItem.kind === 'card') {
+      const c = currentItem.data
+      setAIFocus({
+        ticker: c.ticker,
+        cardType: c.card_type === 'video' ? 'stock' : c.card_type,
+        headline: c.headline,
+        summary: c.summary,
+        changePercent: c.change_percent,
+        source: c.source_name ?? c.source,
+      })
+    } else {
+      setAIFocus(currentItem.data.ticker ? { ticker: currentItem.data.ticker } : null)
+    }
+  }, [currentItem])
+  useEffect(() => () => setAIFocus(null), [])
 
   const advance = useCallback(() => {
     setExpanded(false)
@@ -622,7 +656,7 @@ export default function FeedPage() {
           onClose={() => setShowCreate(false)}
           onPosted={() => {
             setShowCreate(false)
-            prependNewestPost()
+            showOwnNewPost()
           }}
         />
       )}
