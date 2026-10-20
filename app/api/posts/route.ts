@@ -5,6 +5,17 @@ export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { searchParams } = new URL(req.url)
   const ticker = searchParams.get('ticker')
+  const following = searchParams.get('following') === '1'
+
+  // Following feed: only posts from creators the current user follows
+  let authorIds: string[] | null = null
+  if (following) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ posts: [], followingCount: 0 })
+    const { data: rows } = await supabase.from('follows').select('following_id').eq('follower_id', user.id)
+    authorIds = (rows ?? []).map((r: { following_id: string }) => r.following_id)
+    if (authorIds.length === 0) return NextResponse.json({ posts: [], followingCount: 0 })
+  }
 
   let query = supabase
     .from('posts')
@@ -15,9 +26,10 @@ export async function GET(req: NextRequest) {
       comments(id)
     `)
     .order('created_at', { ascending: false })
-    .limit(20)
+    .limit(following ? 50 : 20)
 
   if (ticker) query = query.eq('ticker', ticker)
+  if (authorIds) query = query.in('user_id', authorIds)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ posts: [] })
@@ -29,7 +41,7 @@ export async function GET(req: NextRequest) {
     comment_count: Array.isArray(p.comments) ? (p.comments as unknown[]).length : 0,
   }))
 
-  return NextResponse.json({ posts })
+  return NextResponse.json(authorIds ? { posts, followingCount: authorIds.length } : { posts })
 }
 
 export async function POST(req: NextRequest) {

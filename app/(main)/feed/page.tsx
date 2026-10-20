@@ -17,6 +17,7 @@ type FeedItem =
 
 type FeedFilter =
   | 'all'
+  | 'following'
   | 'creators'
   | 'articles'
   | 'recent'
@@ -29,6 +30,7 @@ type FeedFilter =
 
 const FILTERS: { id: FeedFilter; label: string; emoji: string }[] = [
   { id: 'all',        label: 'All',         emoji: '⚡' },
+  { id: 'following',  label: 'Following',   emoji: '👥' },
   { id: 'creators',   label: 'Creators',    emoji: '🎬' },
   { id: 'articles',   label: 'Articles',    emoji: '📰' },
   { id: 'recent',     label: 'Recent',      emoji: '🕐' },
@@ -42,6 +44,8 @@ const FILTERS: { id: FeedFilter; label: string; emoji: string }[] = [
 
 const FEED_CACHE_TTL = 10 * 60 * 1000 // 10 minutes
 const FILTER_STORAGE_KEY = 'mj_feed_filter'
+// Set by /create after a successful post so the feed can surface it on arrival
+const NEW_POST_KEY = 'mj_feed_new_post'
 
 function cacheKey(filter: FeedFilter) { return `mj_feed_cache_${filter}` }
 
@@ -93,6 +97,8 @@ export default function FeedPage() {
   const [showComments, setShowComments] = useState(false)
   // Tracks comments added this session for any feed item (both cards and videos)
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
+  // Number of creators the user follows (from the Following feed) — drives its empty state
+  const [followingCount, setFollowingCount] = useState<number | null>(null)
 
   // Pull-to-refresh touch tracking
   const touchStartY = useRef(0)
@@ -120,7 +126,18 @@ export default function FeedPage() {
         if (wl) setTracked(new Set(wl.map((w: { ticker: string }) => w.ticker)))
       }
 
-      if (!readCache(activeFilterRef.current)) {
+      let justPosted = false
+      try {
+        justPosted = sessionStorage.getItem(NEW_POST_KEY) === '1'
+        sessionStorage.removeItem(NEW_POST_KEY)
+      } catch {}
+
+      if (justPosted) {
+        // Caches predate the new post — reload, then pin the new post to the top
+        FILTERS.forEach(f => { try { sessionStorage.removeItem(cacheKey(f.id)) } catch {} })
+        await loadFeed(false, activeFilterRef.current)
+        await prependNewestPost()
+      } else if (!readCache(activeFilterRef.current)) {
         await loadFeed(false, activeFilterRef.current)
       }
     }
@@ -133,8 +150,9 @@ export default function FeedPage() {
     else setLoading(true)
 
     // Which sources to fetch per filter
-    const wantCards = filter !== 'creators'
-    const wantPosts = filter === 'all' || filter === 'recent' || filter === 'creators' || filter === 'commented'
+    const postsOnly = filter === 'creators' || filter === 'following'
+    const wantCards = !postsOnly
+    const wantPosts = postsOnly || filter === 'all' || filter === 'recent' || filter === 'commented'
 
     try {
       const [cardsRes, postsRes] = await Promise.all([
@@ -142,7 +160,7 @@ export default function FeedPage() {
           ? fetch(`/api/feed?filter=${filter}`)
           : Promise.resolve(null),
         wantPosts
-          ? fetch('/api/posts')
+          ? fetch(filter === 'following' ? '/api/posts?following=1' : '/api/posts')
           : Promise.resolve(null),
       ])
 
@@ -153,9 +171,10 @@ export default function FeedPage() {
 
       const cards: FeedItem[] = (cardsData.cards ?? []).map((c: JumpCardType) => ({ kind: 'card' as const, data: c }))
       const videos: FeedItem[] = (postsData.posts ?? []).map((p: VideoPost) => ({ kind: 'video' as const, data: p }))
+      if (filter === 'following') setFollowingCount(postsData.followingCount ?? 0)
 
       let merged: FeedItem[]
-      if (filter === 'creators') {
+      if (postsOnly) {
         merged = videos
       } else if (!wantPosts || videos.length === 0) {
         merged = cards
@@ -178,6 +197,28 @@ export default function FeedPage() {
 
     if (isRefresh) setRefreshing(false)
     else setLoading(false)
+  }
+
+  async function prependNewestPost() {
+    try {
+      // Fetch the freshest post (the one just created) and prepend it
+      const res = await fetch('/api/posts')
+      const data = await res.json()
+      const newest = data.posts?.[0]
+      if (newest) {
+        setFeed(prev => {
+          // Remove any existing copy of this post, then prepend
+          const without = prev.filter(f => !(f.kind === 'video' && f.data.id === newest.id))
+          return [{ kind: 'video' as const, data: newest }, ...without]
+        })
+        setIndex(0)
+        setHistory([])
+      } else {
+        loadFeed(true, activeFilterRef.current)
+      }
+    } catch {
+      loadFeed(true, activeFilterRef.current)
+    }
   }
 
   // Persist position + history whenever anything changes
@@ -320,10 +361,16 @@ export default function FeedPage() {
     return (
       <div className="h-full flex items-center justify-center px-6">
         <div className="text-center">
-          <div className="text-5xl mb-4">📭</div>
-          <h2 className="text-white font-bold text-xl mb-2">Nothing here yet</h2>
+          <div className="text-5xl mb-4">{activeFilter === 'following' ? '👥' : '📭'}</div>
+          <h2 className="text-white font-bold text-xl mb-2">
+            {activeFilter === 'following' && followingCount === 0 ? 'Not following anyone yet' : 'Nothing here yet'}
+          </h2>
           <p className="text-[#6b7280] text-sm mb-6">
-            {activeFilter === 'creators' ? 'No creator posts yet. Be the first!' : 'Check back soon for new market moves.'}
+            {activeFilter === 'following'
+              ? followingCount === 0
+                ? 'Follow creators from their Brand Page and their Moves will show up here.'
+                : 'The creators you follow haven’t posted any Moves yet.'
+              : activeFilter === 'creators' ? 'No creator posts yet. Be the first!' : 'Check back soon for new market moves.'}
           </p>
           <div className="flex gap-3 justify-center">
             <button onClick={() => loadFeed(true, activeFilter)} className="bg-[#00C805] text-black font-bold px-6 py-3 rounded-xl">
@@ -573,27 +620,9 @@ export default function FeedPage() {
       {showCreate && (
         <CreatePost
           onClose={() => setShowCreate(false)}
-          onPosted={async () => {
+          onPosted={() => {
             setShowCreate(false)
-            try {
-              // Fetch the freshest post (the one just created) and prepend it
-              const res = await fetch('/api/posts')
-              const data = await res.json()
-              const newest = data.posts?.[0]
-              if (newest) {
-                setFeed(prev => {
-                  // Remove any existing copy of this post, then prepend
-                  const without = prev.filter(f => !(f.kind === 'video' && f.data.id === newest.id))
-                  return [{ kind: 'video' as const, data: newest }, ...without]
-                })
-                setIndex(0)
-                setHistory([])
-              } else {
-                loadFeed(true, activeFilterRef.current)
-              }
-            } catch {
-              loadFeed(true, activeFilterRef.current)
-            }
+            prependNewestPost()
           }}
         />
       )}

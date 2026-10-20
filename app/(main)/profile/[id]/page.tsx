@@ -6,6 +6,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LevelBadge from '@/components/LevelBadge'
+import FollowButton from '@/components/FollowButton'
 import type { UserLevel } from '@/lib/types'
 
 interface BrandProfile {
@@ -80,8 +81,6 @@ function PublicBrandContent() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'live' | 'history' | 'analysis'>('live')
   const [myId, setMyId] = useState<string | null>(null)
-  const [isFollowing, setIsFollowing] = useState(false)
-  const [followLoading, setFollowLoading] = useState(false)
   const [myVote, setMyVote] = useState<'agreed' | 'disagreed' | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -141,18 +140,7 @@ function PublicBrandContent() {
       .limit(10)
     if (postsData) setPosts(postsData as Post[])
 
-    // Follow status
     if (userId) {
-      try {
-        const { data: followRow } = await supabase
-          .from('follows')
-          .select('follower_id')
-          .eq('follower_id', userId)
-          .eq('following_id', id)
-          .single()
-        setIsFollowing(!!followRow)
-      } catch { /* table may not exist */ }
-
       // Brand vote
       try {
         const { data: voteRow } = await supabase
@@ -166,37 +154,6 @@ function PublicBrandContent() {
     }
 
     setLoading(false)
-  }
-
-  async function handleFollow() {
-    if (!myId || !profile) return
-    setFollowLoading(true)
-
-    // Get current user's following count to increment/decrement accurately
-    const { data: me } = await supabase
-      .from('profiles')
-      .select('following')
-      .eq('id', myId)
-      .single()
-
-    if (isFollowing) {
-      await supabase.from('follows').delete().eq('follower_id', myId).eq('following_id', id)
-      await Promise.allSettled([
-        supabase.from('profiles').update({ followers: Math.max(0, (profile.followers ?? 1) - 1) }).eq('id', id),
-        supabase.from('profiles').update({ following: Math.max(0, ((me?.following ?? 1) - 1)) }).eq('id', myId),
-      ])
-      setIsFollowing(false)
-      setProfile(prev => prev ? { ...prev, followers: Math.max(0, prev.followers - 1) } : prev)
-    } else {
-      await supabase.from('follows').upsert({ follower_id: myId, following_id: id }, { onConflict: 'follower_id,following_id' })
-      await Promise.allSettled([
-        supabase.from('profiles').update({ followers: (profile.followers ?? 0) + 1 }).eq('id', id),
-        supabase.from('profiles').update({ following: (me?.following ?? 0) + 1 }).eq('id', myId),
-      ])
-      setIsFollowing(true)
-      setProfile(prev => prev ? { ...prev, followers: (prev.followers ?? 0) + 1 } : prev)
-    }
-    setFollowLoading(false)
   }
 
   async function handleVote(vote: 'agreed' | 'disagreed') {
@@ -326,12 +283,11 @@ function PublicBrandContent() {
               { label: 'Brand Score', value: profile.market_score.toLocaleString(), color: '#C9A84C' },
               { label: 'Accuracy', value: `${profile.accuracy?.toFixed(1)}%`, color: '#00C805' },
               { label: 'Total Moves', value: profile.total_predictions, color: 'white' },
-              { label: 'Audience', value: profile.followers, color: 'white', tappable: true },
+              { label: 'Correct Calls', value: profile.correct_predictions, color: '#00C805' },
             ].map((stat, i) => (
               <div
                 key={i}
-                className={`bg-[rgba(8,12,20,0.88)] rounded-xl border border-[#C9A84C]/20 p-2.5 text-center backdrop-blur-md ${stat.tappable ? 'cursor-pointer active:opacity-70' : ''}`}
-                onClick={stat.tappable ? () => router.push(`/profile/${id}/followers`) : undefined}
+                className="bg-[rgba(8,12,20,0.88)] rounded-xl border border-[#C9A84C]/20 p-2.5 text-center backdrop-blur-md"
               >
                 <div className="font-black text-sm leading-tight" style={{ color: stat.color }}>{stat.value}</div>
                 <div className="text-[#6b7280] text-[9px] uppercase tracking-wider mt-0.5">{stat.label}</div>
@@ -339,20 +295,25 @@ function PublicBrandContent() {
             ))}
           </div>
 
-          {/* Follow button (not own profile) */}
-          {!isOwnProfile && myId && (
-            <button
-              onClick={handleFollow}
-              disabled={followLoading}
-              className={`w-full py-2.5 rounded-xl text-sm font-black transition-colors disabled:opacity-50 ${
-                isFollowing
-                  ? 'border border-[#C9A84C] text-[#C9A84C] bg-transparent'
-                  : 'text-black'
-              }`}
-              style={!isFollowing ? { background: 'linear-gradient(135deg, #C9A84C, #e8c96d)' } : {}}
-            >
-              {isFollowing ? '✓ Following' : 'Follow Brand'}
+          {/* Tappable Audience + Following row */}
+          <div className="flex justify-center gap-6 mb-4">
+            <button onClick={() => router.push(`/profile/${id}/followers`)} className="text-center">
+              <div className="text-white font-black text-sm">{profile.followers.toLocaleString()}</div>
+              <div className="text-[#6b7280] text-[10px] uppercase tracking-wider">Audience</div>
             </button>
+            <div className="w-px bg-[#2a2a3a]" />
+            <button onClick={() => router.push(`/profile/${id}/following`)} className="text-center">
+              <div className="text-white font-black text-sm">{profile.following.toLocaleString()}</div>
+              <div className="text-[#6b7280] text-[10px] uppercase tracking-wider">Following</div>
+            </button>
+          </div>
+
+          {/* Follow button (hidden on own profile) */}
+          {!isOwnProfile && (
+            <FollowButton
+              targetId={id}
+              onChange={delta => setProfile(prev => prev ? { ...prev, followers: Math.max(0, prev.followers + delta) } : prev)}
+            />
           )}
         </div>
 

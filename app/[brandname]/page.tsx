@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Metadata } from 'next'
 import type { UserLevel } from '@/lib/types'
 import LevelBadge from '@/components/LevelBadge'
+import FollowButton from '@/components/FollowButton'
 
 interface BrandProfile {
   id: string
@@ -15,6 +16,8 @@ interface BrandProfile {
   accuracy: number
   total_predictions: number
   correct_predictions: number
+  followers: number
+  following: number
   agreed_count: number
   disagreed_count: number
 }
@@ -35,7 +38,7 @@ async function fetchBrandData(brandname: string): Promise<{ profile: BrandProfil
   // Try brand_name first (case-insensitive)
   let { data: profile } = await supabase
     .from('profiles')
-    .select('id, username, brand_name, brand_tagline, brand_avatar_url, brand_logo_url, level, market_score, accuracy, total_predictions, correct_predictions, agreed_count, disagreed_count')
+    .select('id, username, brand_name, brand_tagline, brand_avatar_url, brand_logo_url, level, market_score, accuracy, total_predictions, correct_predictions, followers, following, agreed_count, disagreed_count')
     .ilike('brand_name', brandname)
     .single()
 
@@ -43,7 +46,7 @@ async function fetchBrandData(brandname: string): Promise<{ profile: BrandProfil
   if (!profile) {
     const { data: byUsername } = await supabase
       .from('profiles')
-      .select('id, username, brand_name, brand_tagline, brand_avatar_url, brand_logo_url, level, market_score, accuracy, total_predictions, correct_predictions, agreed_count, disagreed_count')
+      .select('id, username, brand_name, brand_tagline, brand_avatar_url, brand_logo_url, level, market_score, accuracy, total_predictions, correct_predictions, followers, following, agreed_count, disagreed_count')
       .ilike('username', brandname)
       .single()
     profile = byUsername
@@ -215,6 +218,23 @@ export default async function PublicBrandPage({
               <div className="text-[#6b7280] text-[9px] uppercase tracking-wider mt-0.5">{stat.label}</div>
             </div>
           ))}
+        </div>
+
+        {/* Audience + Following */}
+        <div className="flex justify-center gap-6 mt-4">
+          <a href={`/profile/${profile.id}/followers`} className="text-center">
+            <div className="text-white font-black text-sm">{(profile.followers ?? 0).toLocaleString()}</div>
+            <div className="text-[#6b7280] text-[10px] uppercase tracking-wider">Audience</div>
+          </a>
+          <div className="w-px bg-[#2a2a3a]" />
+          <a href={`/profile/${profile.id}/following`} className="text-center">
+            <div className="text-white font-black text-sm">{(profile.following ?? 0).toLocaleString()}</div>
+            <div className="text-[#6b7280] text-[10px] uppercase tracking-wider">Following</div>
+          </a>
+        </div>
+
+        <div className="mt-4">
+          <FollowButton targetId={profile.id} />
         </div>
 
         {/* Credibility bar */}

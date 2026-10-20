@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 // Protected routes — anything starting with these requires auth
 const PROTECTED_PREFIXES = [
   '/feed',
+  '/create',
   '/explore',
   '/watchlist',
   '/leaderboard',
