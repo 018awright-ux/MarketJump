@@ -11,6 +11,7 @@ import CommentsSheet from '@/components/CommentsSheet'
 import ExpandedCard from '@/components/ExpandedCard'
 import PullIndicator from '@/components/PullIndicator'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
+import { articlesToCards, newsLabel } from '@/lib/newsCards'
 
 interface SearchResult {
   symbol: string
@@ -43,6 +44,8 @@ interface StockData {
   ticker: string
   quote: Quote | null
   news: NewsItem[]
+  newsDate?: string
+  newsIsToday?: boolean
   cards: JumpCard[]
 }
 
@@ -284,7 +287,8 @@ export default function ExplorePage() {
     })
   }
 
-  async function loadStock(ticker: string) {
+  async function loadStock(rawTicker: string) {
+    const ticker = rawTicker.toUpperCase()
     // Scroll to top so the stock panel is visible immediately
     ptr.scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
     setLoadingStock(true)
@@ -308,11 +312,15 @@ export default function ExplorePage() {
           .limit(10),
       ])
       const data = await stockRes.json()
+      const liveQuote: Quote | null = data.quote?.c ? data.quote : null
       setStockData({
         ticker,
-        quote: data.quote,
+        quote: liveQuote,
         news: data.news ?? [],
-        cards: (dbCards ?? []) as JumpCard[],
+        newsDate: data.newsDate,
+        newsIsToday: data.newsIsToday,
+        // The stock's own cards, then a card per article from today's news
+        cards: [...((dbCards ?? []) as JumpCard[]), ...articlesToCards(ticker, data.news ?? [], liveQuote)],
       })
     } catch {
       setStockData({ ticker, quote: null, news: [], cards: [] })
@@ -616,9 +624,11 @@ export default function ExplorePage() {
 
                   {stockData.news.length > 0 && (
                     <div className="p-4">
-                      <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-2">Latest News</div>
+                      <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-2">
+                        Latest News · {newsLabel(stockData.news.length, stockData.newsDate, stockData.newsIsToday)}
+                      </div>
                       <div className="space-y-2">
-                        {stockData.news.slice(0, 5).map((n, i) => <NewsCard key={i} item={n} />)}
+                        {stockData.news.map((n, i) => <NewsCard key={i} item={n} />)}
                       </div>
                     </div>
                   )}

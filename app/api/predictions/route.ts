@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getQuote } from '@/lib/finnhub'
 
 export async function GET() {
   const supabase = await createClient()
@@ -20,9 +21,19 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { ticker, prediction, price } = await req.json()
-  if (!ticker || !prediction) {
+  const body = await req.json()
+  const ticker = typeof body.ticker === 'string' ? body.ticker.trim().toUpperCase() : ''
+  const { prediction } = body
+  if (!ticker || (prediction !== 'bullish' && prediction !== 'bearish')) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+  }
+
+  // Price comes from the live quote, never the client: a $0 or made-up entry price
+  // would let a Move be scored as correct regardless of what the stock did
+  const quote = await getQuote(ticker).catch(() => null)
+  const price = quote?.c
+  if (!price || price <= 0) {
+    return NextResponse.json({ error: 'No live price for this ticker right now. Try again shortly.' }, { status: 503 })
   }
 
   const resolutionDate = new Date()
@@ -32,7 +43,7 @@ export async function POST(req: NextRequest) {
     user_id: user.id,
     ticker,
     prediction,
-    price_at_prediction: price ?? 0,
+    price_at_prediction: price,
     resolution_date: resolutionDate.toISOString(),
   }).select().single()
 

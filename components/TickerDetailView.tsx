@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { JumpCard, VideoPost, UserLevel } from '@/lib/types'
 import ExpandedCard from '@/components/ExpandedCard'
 import CommentsSheet from '@/components/CommentsSheet'
+import { articlesToCards, newsLabel } from '@/lib/newsCards'
 
 interface NewsItem {
   id?: number
@@ -43,6 +44,7 @@ export default function TickerDetailView({ ticker, contextBadge, onClose }: Prop
   const [index, setIndex] = useState(0)
   const [history, setHistory] = useState<number[]>([])
   const [news, setNews] = useState<NewsItem[]>([])
+  const [newsMeta, setNewsMeta] = useState<{ date?: string; isToday?: boolean }>({})
   const [loading, setLoading] = useState(true)
   const [loadingNews, setLoadingNews] = useState(true)
   const [quote, setQuote] = useState<{ c: number; dp: number } | null>(null)
@@ -71,37 +73,32 @@ export default function TickerDetailView({ ticker, contextBadge, onClose }: Prop
           if (profile) setLevel(profile.level as UserLevel)
         }
 
-        const [cardsRes, postsRes, stockRes] = await Promise.all([
-          fetch('/api/feed'),
-          fetch('/api/posts'),
-          fetch(`/api/stocks/${ticker}`),
+        const sym = ticker.toUpperCase()
+        // Only this ticker's content: its own cards, its creators' Moves, and its news
+        const [{ data: dbCards }, postsRes, stockRes] = await Promise.all([
+          supabase.from('jump_cards').select('*').eq('ticker', sym).order('created_at', { ascending: false }).limit(20),
+          fetch(`/api/posts?ticker=${encodeURIComponent(sym)}`),
+          fetch(`/api/stocks/${encodeURIComponent(sym)}`),
         ])
-        const [cardsData, postsData, stockData] = await Promise.all([
-          cardsRes.json(),
-          postsRes.json(),
-          stockRes.json(),
-        ])
+        const [postsData, stockData] = await Promise.all([postsRes.json(), stockRes.json()])
 
-        if (stockData.quote) setQuote(stockData.quote)
+        if (stockData.quote?.c) setQuote(stockData.quote)
         setNews(stockData.news ?? [])
+        setNewsMeta({ date: stockData.newsDate, isToday: stockData.newsIsToday })
         setLoadingNews(false)
 
-        const allCards: JumpCard[] = cardsData.cards ?? []
-        const allPosts: VideoPost[] = postsData.posts ?? []
-
-        const tickerCards = allCards.filter(c => c.ticker?.toUpperCase() === ticker.toUpperCase())
-        const tickerPosts = allPosts.filter(p => p.ticker?.toUpperCase() === ticker.toUpperCase())
+        const liveQuote = stockData.quote?.c ? stockData.quote : null
+        const tickerCards: JumpCard[] = [
+          ...((dbCards ?? []) as JumpCard[]).map(c => ({ ...c, price: liveQuote?.c ?? c.price, change_percent: liveQuote?.dp ?? c.change_percent })),
+          ...articlesToCards(sym, stockData.news ?? [], liveQuote),
+        ]
+        const tickerPosts: VideoPost[] = postsData.posts ?? []
 
         const merged: FeedItem[] = []
         const maxLen = Math.max(tickerCards.length, tickerPosts.length)
         for (let i = 0; i < maxLen; i++) {
           if (tickerCards[i]) merged.push({ kind: 'card', data: tickerCards[i] })
           if (tickerPosts[i]) merged.push({ kind: 'video', data: tickerPosts[i] })
-        }
-
-        // Fallback: show general cards so the player is never empty
-        if (merged.length === 0) {
-          allCards.slice(0, 5).forEach(c => merged.push({ kind: 'card', data: c }))
         }
 
         setItems(merged)
@@ -119,16 +116,16 @@ export default function TickerDetailView({ ticker, contextBadge, onClose }: Prop
     if (!current) return
     setActionFlash(prediction === 'bullish' ? 'bull' : 'bear')
     setTimeout(() => setActionFlash(null), 600)
-    const price = current.kind === 'card' ? (current.data.price ?? 0) : 0
-
+    // Entry price is set server-side from the live quote
     const calls: Promise<unknown>[] = [
       fetch('/api/predictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticker, prediction, price }),
+        body: JSON.stringify({ ticker, prediction }),
       }),
     ]
-    if (current.kind === 'card' && current.data.id) {
+    // Live news cards aren't stored jump_cards, so there's no community vote to record
+    if (current.kind === 'card' && current.data.id && !current.data.id.startsWith('news-')) {
       calls.push(fetch('/api/votes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -321,7 +318,7 @@ export default function TickerDetailView({ ticker, contextBadge, onClose }: Prop
               <div className="h-full flex items-center justify-center text-center">
                 <div>
                   <div className="text-4xl mb-3">📭</div>
-                  <p className="text-[#6b7280] text-sm">No signals yet for ${ticker}</p>
+                  <p className="text-[#6b7280] text-sm">No signals or news for ${ticker} yet</p>
                 </div>
               </div>
             ) : (
@@ -527,7 +524,7 @@ export default function TickerDetailView({ ticker, contextBadge, onClose }: Prop
           ) : (
             <>
               <div className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider mb-3">
-                ${ticker} · {news.length} articles
+                ${ticker} · {newsLabel(news.length, newsMeta.date, newsMeta.isToday)}
               </div>
               <div className="space-y-2">
                 {news.map((item, i) => (

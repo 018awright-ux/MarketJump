@@ -326,13 +326,13 @@ export default function FeedPage() {
     setTimeout(() => setActionFlash(null), 600)
 
     const ticker = currentItem.data.ticker
-    const price = currentItem.kind === 'card' ? (currentItem.data.price ?? 0) : 0
 
+    // Entry price is set server-side from the live quote
     const calls: Promise<unknown>[] = [
       fetch('/api/predictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticker, prediction, price }),
+        body: JSON.stringify({ ticker, prediction }),
       }),
     ]
     if (currentItem.kind === 'card' && currentItem.data.id) {

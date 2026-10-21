@@ -124,11 +124,11 @@ export default function WatchlistPage() {
   }
 
   async function makePrediction(ticker: string, prediction: 'bullish' | 'bearish') {
-    const price = quotes[ticker]?.c ?? 0
+    // Entry price is set server-side from the live quote
     await fetch('/api/predictions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker, prediction, price }),
+      body: JSON.stringify({ ticker, prediction }),
     })
     loadWatchlist()
   }
