@@ -15,7 +15,7 @@ Things deliberately deferred until launch. Work through these before announcing 
 
 ## Hosting
 
-- [ ] **Remove the duplicate Vercel project `marketjump`** (no dash). The live project is **market-jump**. Disconnect Git first; delete once nothing has broken for a week.
+- [ ] **Delete the duplicate Vercel project `marketjump`** (no dash). The live project is **market-jump**. On 2026-10-21 it was **paused** and its Ignored Build Step set to `exit 0`, so it no longer builds or runs crons. Delete it (Settings → General, bottom) once nothing has broken for a week. To undo instead: Unpause, and clear Settings → Git → Ignored Build Step.
 - [ ] Confirm `/api/judgment-day` ran successfully after a real Friday 4:30 PM ET Judgment Day (Vercel → Cron Jobs → logs).
 
 ## Data
