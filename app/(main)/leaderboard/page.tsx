@@ -7,6 +7,7 @@ import ProfileLink from '@/components/ProfileLink'
 import FollowButton from '@/components/FollowButton'
 import { useRouter } from 'next/navigation'
 import LevelBadge from '@/components/LevelBadge'
+import { nextJudgmentDay } from '@/lib/judgmentDay'
 import PullIndicator from '@/components/PullIndicator'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import type { UserLevel } from '@/lib/types'
@@ -34,15 +35,6 @@ interface LeaderboardEntry {
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
 
-function nextScoreUpdate(): Date {
-  const now = new Date()
-  const day = now.getUTCDay()
-  const daysAway = (5 - day + 7) % 7 || 7
-  const d = new Date(now)
-  d.setUTCDate(now.getUTCDate() + daysAway)
-  d.setUTCHours(0, 0, 0, 0)
-  return d
-}
 
 function nextMonthReset(): Date {
   const now = new Date()
@@ -460,7 +452,7 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     function tick() {
-      setScoreCountdown(formatCountdown(nextScoreUpdate()))
+      setScoreCountdown(formatCountdown(nextJudgmentDay()))
       setResetCountdown(formatCountdown(nextMonthReset()))
     }
     tick()
@@ -490,10 +482,10 @@ export default function LeaderboardPage() {
             <div className="rounded-2xl p-3 border border-[#C9A84C]/30" style={{ background: 'rgba(201,168,76,0.06)' }}>
               <div className="flex items-center gap-1.5 mb-1">
                 <span className="text-sm">⚡</span>
-                <span className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider">Score Update</span>
+                <span className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider">Judgment Day</span>
               </div>
               <div className="text-white font-black text-sm tabular-nums">{scoreCountdown}</div>
-              <div className="text-[#6b7280] text-[10px] mt-0.5">Every Friday</div>
+              <div className="text-[#6b7280] text-[10px] mt-0.5">Fridays 4:30 PM ET</div>
             </div>
             <div className="rounded-2xl p-3 border border-[#40A9FF]/20" style={{ background: 'rgba(64,169,255,0.05)' }}>
               <div className="flex items-center gap-1.5 mb-1">

@@ -5,8 +5,8 @@
       "schedule": "0 12 */4 * *"
     },
     {
-      "path": "/api/recalculate-tiers",
-      "schedule": "0 0 * * 5"
+      "path": "/api/judgment-day",
+      "schedule": "35 21 * * 1-5"
     }
   ]
 }

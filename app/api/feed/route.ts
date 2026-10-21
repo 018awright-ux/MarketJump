@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getTrendingTickers } from '@/lib/trending'
 
 // Extended discovery pool — pull news from these tickers to fill gaps
 const DISCOVERY_TICKERS = [
@@ -81,6 +82,22 @@ export async function GET(req: NextRequest) {
 
     const supabase = await createClient()
 
+    // Trending — the tickers MarketJump users are calling and posting about this week:
+    // their cards plus today's news for each, hottest ticker first
+    if (filter === 'trending') {
+      const trending = await getTrendingTickers(supabase, 12)
+      const tickers = trending.map(t => t.ticker)
+      const [{ data: tickerCards }, newsResults] = await Promise.all([
+        supabase.from('jump_cards').select('*').in('ticker', tickers).order('created_at', { ascending: false }).limit(60),
+        Promise.allSettled(tickers.map(t => fetchDiscoveryCards(t))),
+      ])
+      const newsCards = newsResults.flatMap(r => r.status === 'fulfilled' ? r.value : [])
+      const rank = new Map(tickers.map((t, i) => [t, i]))
+      const cards = [...newsCards, ...(tickerCards ?? [])]
+        .sort((a, b) => (rank.get(a.ticker.toUpperCase()) ?? 99) - (rank.get(b.ticker.toUpperCase()) ?? 99))
+      return NextResponse.json({ cards, trending })
+    }
+
     // Build the Supabase query based on filter
     let query = supabase.from('jump_cards').select('*')
 
@@ -90,13 +107,6 @@ export async function GET(req: NextRequest) {
     } else if (filter === 'bearish') {
       // Lowest bull (= highest bear) first
       query = query.order('bull_percent', { ascending: true }).limit(80)
-    } else if (filter === 'trending') {
-      // Cards updated in the last 7 days, most recent first
-      const weekAgo = new Date(Date.now() - 7 * 86400_000).toISOString()
-      query = query
-        .gte('created_at', weekAgo)
-        .order('created_at', { ascending: false })
-        .limit(80)
     } else if (filter === 'top_stocks') {
       // Most engaged: extreme sentiment (furthest from 50) signals community activity
       // We sort by bull_percent desc and take top half, giving bullish-leaning "hot" cards
@@ -119,7 +129,7 @@ export async function GET(req: NextRequest) {
     }
 
     // For filters that need pure sorted output, skip the shuffle + discovery injection
-    const sortedFilters = ['bullish', 'bearish', 'top_stocks', 'commented', 'trending']
+    const sortedFilters = ['bullish', 'bearish', 'top_stocks', 'commented']
     if (sortedFilters.includes(filter)) {
       return NextResponse.json({ cards: cards ?? [] })
     }

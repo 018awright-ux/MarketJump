@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { lastJudgmentDay } from '@/lib/judgmentDay'
+import { SCORE_CORRECT, SCORE_INCORRECT } from '@/lib/scoring'
 
 type Period = 'weekly' | 'monthly' | 'all_time'
 
-const SCORE_CORRECT   = 50
-const SCORE_INCORRECT = 20
-
-/** Week runs Friday → Thursday. Roll back to last Friday 00:00 UTC. */
+/**
+ * The weekly board shows the latest Judgment Day's results: Moves due after the
+ * previous Judgment Day, up to now. It flips to the new week's results each Friday at 4:30 PM NY.
+ */
 function startOfWeek(): string {
-  const now = new Date()
-  const day  = now.getUTCDay() // 0=Sun 1=Mon … 5=Fri 6=Sat
-  // days since last Friday: Fri=0, Sat=1, Sun=2, Mon=3, Tue=4, Wed=5, Thu=6
-  const daysSinceFri = (day - 5 + 7) % 7
-  const d = new Date(now)
-  d.setUTCDate(now.getUTCDate() - daysSinceFri)
-  d.setUTCHours(0, 0, 0, 0)
-  return d.toISOString()
+  return new Date(lastJudgmentDay().getTime() - 7 * 86400_000 + 1000).toISOString()
 }
 
 function startOfMonth(): string {
@@ -35,12 +30,14 @@ export async function GET(req: NextRequest) {
       const { data, error } = await supabase
         .from('profiles')
         .select('id, username, brand_name, level, market_score, accuracy, total_predictions')
+        // Everyone starts at 1,000 — only rank people who've actually made a Move
+        .gt('total_predictions', 0)
         .order('market_score', { ascending: false })
         .limit(50)
 
       if (error) return NextResponse.json({ leaderboard: [], period })
 
-      const ranked = (data ?? []).map((u, i) => ({ ...u, rank: i + 1 }))
+      const ranked = (data ?? []).map((u, i) => ({ ...u, user_id: u.id, rank: i + 1 }))
       return NextResponse.json({ leaderboard: ranked, period })
     }
 
@@ -81,7 +78,7 @@ export async function GET(req: NextRequest) {
       .filter(p => p.market_score > 0)
       .sort((a, b) => b.market_score - a.market_score)
       .slice(0, 50)
-      .map((p, i) => ({ ...p, rank: i + 1 }))
+      .map((p, i) => ({ ...p, user_id: p.id, rank: i + 1 }))
 
     return NextResponse.json({ leaderboard: ranked, period })
   } catch (e) {

@@ -11,6 +11,7 @@ import ExpandedCard from '@/components/ExpandedCard'
 import CreatePost from '@/components/CreatePost'
 import CommentsSheet from '@/components/CommentsSheet'
 import { setAIFocus } from '@/lib/aiFocus'
+import type { TrendingTicker } from '@/lib/trending'
 
 type FeedItem =
   | { kind: 'card'; data: JumpCardType }
@@ -103,6 +104,8 @@ export default function FeedPage() {
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
   // Number of creators the user follows (from the Following feed) — drives its empty state
   const [followingCount, setFollowingCount] = useState<number | null>(null)
+  // Ranked stocks behind the Trending filter, with their discussion + call stats
+  const [trending, setTrending] = useState<TrendingTicker[]>([])
 
   // Pull-to-refresh touch tracking
   const touchStartY = useRef(0)
@@ -176,8 +179,24 @@ export default function FeedPage() {
       const videos: FeedItem[] = (postsData.posts ?? []).map((p: VideoPost) => ({ kind: 'video' as const, data: p }))
       if (filter === 'following') setFollowingCount(postsData.followingCount ?? 0)
 
+      // Trending leads with the discussion: this week's Moves on the trending stocks, then their cards/news
+      let trendingMoves: FeedItem[] = []
+      if (filter === 'trending') {
+        const list: TrendingTicker[] = cardsData.trending ?? []
+        setTrending(list)
+        if (list.length) {
+          const res = await fetch(`/api/posts?tickers=${list.map(t => t.ticker).join(',')}&days=7`)
+          const rank = new Map(list.map((t, i) => [t.ticker, i]))
+          trendingMoves = ((await res.json()).posts ?? [])
+            .sort((a: VideoPost, b: VideoPost) => (rank.get(a.ticker?.toUpperCase()) ?? 99) - (rank.get(b.ticker?.toUpperCase()) ?? 99))
+            .map((p: VideoPost) => ({ kind: 'video' as const, data: p }))
+        }
+      }
+
       let merged: FeedItem[]
-      if (postsOnly) {
+      if (filter === 'trending') {
+        merged = [...trendingMoves, ...cards]
+      } else if (postsOnly) {
         merged = videos
       } else if (!wantPosts || videos.length === 0) {
         merged = cards
@@ -240,6 +259,11 @@ export default function FeedPage() {
   useEffect(() => {
     if (feed.length > 0) writeCache(activeFilter, feed, index, history)
   }, [index, feed, activeFilter, history])
+
+  useEffect(() => {
+    if (activeFilter !== 'trending' || trending.length) return
+    fetch('/api/trending').then(r => r.json()).then(d => setTrending(d.trending ?? [])).catch(() => {})
+  }, [activeFilter, trending.length])
 
   // Scroll active filter chip into view
   useEffect(() => {
@@ -518,6 +542,38 @@ export default function FeedPage() {
             )
           })}
         </div>
+
+        {/* ── TRENDING STRIP ── what's being discussed; calls shown as a stat. Tap to jump to that stock */}
+        {activeFilter === 'trending' && trending.length > 0 && (
+          <div
+            className="flex-shrink-0 px-4 pb-1.5 flex gap-2 overflow-x-auto"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {trending.map((t, i) => {
+              const talking = t.posts + t.comments
+              const bullPct = t.calls > 0 ? Math.round((t.bullish / t.calls) * 100) : null
+              const target = feed.findIndex(f => f.data.ticker?.toUpperCase() === t.ticker)
+              return (
+                <button
+                  key={t.ticker}
+                  onClick={() => { if (target >= 0) { setHistory(h => [...h.slice(-20), index]); setIndex(target) } }}
+                  disabled={target < 0}
+                  className="flex-shrink-0 flex flex-col items-start px-2.5 py-1 rounded-xl border border-[#C9A84C]/20 active:scale-95 transition-transform disabled:opacity-50"
+                  style={{ background: feed[index]?.data.ticker?.toUpperCase() === t.ticker ? 'rgba(201,168,76,0.15)' : 'rgba(18,18,26,0.9)' }}
+                >
+                  <span className="text-[11px] font-black text-white">
+                    <span className="text-[#C9A84C]">#{i + 1}</span> ${t.ticker}
+                  </span>
+                  <span className="text-[9px] text-[#9ca3af] whitespace-nowrap">
+                    {talking > 0 ? `💬 ${talking}` : '—'}
+                    {t.calls > 0 && <> · {t.calls} call{t.calls === 1 ? '' : 's'}</>}
+                    {bullPct !== null && <span className={bullPct >= 50 ? 'text-[#00C805]' : 'text-[#FF3B30]'}> · {bullPct}% 🐂</span>}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* ── CARD AREA — flex-1, no overflow ── */}
         <div className="flex-1 px-4 pb-1 min-h-0 flex flex-col overflow-hidden">

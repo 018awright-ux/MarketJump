@@ -6,6 +6,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const ticker = searchParams.get('ticker')
   const following = searchParams.get('following') === '1'
+  // Trending: Moves on any of these tickers from the last `days` days
+  const tickers = searchParams.get('tickers')?.split(',').map(t => t.trim().toUpperCase()).filter(Boolean).slice(0, 20)
+  const days = Number(searchParams.get('days')) || 0
 
   // Following feed: only posts from creators the current user follows
   let authorIds: string[] | null = null
@@ -29,6 +32,8 @@ export async function GET(req: NextRequest) {
     .limit(following ? 50 : 20)
 
   if (ticker) query = query.eq('ticker', ticker)
+  if (tickers?.length) query = query.in('ticker', tickers)
+  if (days > 0) query = query.gte('created_at', new Date(Date.now() - days * 86400_000).toISOString())
   if (authorIds) query = query.in('user_id', authorIds)
 
   const { data, error } = await query

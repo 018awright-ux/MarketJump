@@ -12,6 +12,7 @@ import ExpandedCard from '@/components/ExpandedCard'
 import PullIndicator from '@/components/PullIndicator'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import { articlesToCards, newsLabel } from '@/lib/newsCards'
+import { FALLBACK_TRENDING, emptyTicker, type TrendingTicker } from '@/lib/trending'
 
 interface SearchResult {
   symbol: string
@@ -59,7 +60,6 @@ interface BrandResult {
   total_predictions: number
 }
 
-const TRENDING = ['SPY', 'QQQ', 'DIA', 'IWM', 'AAPL', 'NVDA', 'TSLA', 'AMZN', 'META', 'MSFT', 'AMD']
 
 function timeAgo(unix: number): string {
   const diff = Math.floor(Date.now() / 1000) - unix
@@ -75,6 +75,7 @@ export default function ExplorePage() {
   const [results, setResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const [stockData, setStockData] = useState<StockData | null>(null)
+  const [trending, setTrending] = useState<TrendingTicker[]>(FALLBACK_TRENDING.map(emptyTicker))
   const [loadingStock, setLoadingStock] = useState(false)
   const [cardIndex, setCardIndex] = useState(0)
   const [brandResults, setBrandResults] = useState<BrandResult[]>([])
@@ -152,8 +153,15 @@ export default function ExplorePage() {
         .then(d => { if (d.sectors?.length > 0) setSectors(d.sectors) })
         .catch(() => {})
 
-      // Pre-fetch company names for trending tickers
-      fetchCompanyNames(TRENDING)
+      // What MarketJump is discussing today/this week
+      fetch('/api/trending')
+        .then(r => r.json())
+        .then(d => {
+          if (!d.trending?.length) return
+          setTrending(d.trending)
+          fetchCompanyNames(d.trending.map((t: TrendingTicker) => t.ticker))
+        })
+        .catch(() => fetchCompanyNames(FALLBACK_TRENDING))
 
       if (user) {
         // Load personalized feed
@@ -672,7 +680,7 @@ export default function ExplorePage() {
                 {watchlistTickers.length > 0 ? 'Trending on MarketJump' : 'Trending'}
               </div>
               <div className="flex flex-wrap gap-2">
-                {TRENDING.filter(t => !watchlistTickers.includes(t)).map(ticker => (
+                {trending.filter(t => !watchlistTickers.includes(t.ticker)).map(({ ticker, posts, comments }) => (
                   <button
                     key={ticker}
                     onClick={() => loadStock(ticker)}
@@ -683,7 +691,9 @@ export default function ExplorePage() {
                     }}
                   >
                     <span className="text-sm font-bold" style={{ color: stockData?.ticker === ticker ? '#C9A84C' : '#fff' }}>{ticker}</span>
-                    {companyNames[ticker] && (
+                    {posts + comments > 0 ? (
+                      <span className="text-[9px] text-[#C9A84C] font-bold">💬 {posts + comments} talking</span>
+                    ) : companyNames[ticker] && (
                       <span className="text-[9px] text-[#6b7280] truncate max-w-[72px]">{companyNames[ticker]}</span>
                     )}
                   </button>

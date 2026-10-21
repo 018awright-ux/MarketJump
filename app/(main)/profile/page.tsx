@@ -11,6 +11,7 @@ import TickerDetailView from '@/components/TickerDetailView'
 import PullIndicator from '@/components/PullIndicator'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import type { UserLevel } from '@/lib/types'
+import { nextJudgmentDay, lastJudgmentDay } from '@/lib/judgmentDay'
 
 interface BrandProfile {
   id: string
@@ -110,17 +111,8 @@ export default function BrandPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const ptr = usePullToRefresh(async () => { await loadBrand() })
 
-  // Live countdown to next Friday score update
+  // Live countdown to the next Market Judgment Day (Friday 4:30 PM NY)
   useEffect(() => {
-    function nextFriday(): Date {
-      const now = new Date()
-      const day = now.getUTCDay()
-      const daysAway = (5 - day + 7) % 7 || 7
-      const d = new Date(now)
-      d.setUTCDate(now.getUTCDate() + daysAway)
-      d.setUTCHours(0, 0, 0, 0)
-      return d
-    }
     function fmt(t: Date) {
       const diff = t.getTime() - Date.now()
       if (diff <= 0) return 'Scores updating…'
@@ -132,7 +124,7 @@ export default function BrandPage() {
       if (h > 0) return `${h}h ${m}m ${s}s`
       return `${m}m ${s}s`
     }
-    const tick = () => setScoreCountdown(fmt(nextFriday()))
+    const tick = () => setScoreCountdown(fmt(nextJudgmentDay()))
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
@@ -409,28 +401,8 @@ export default function BrandPage() {
   }
 
   // ── Weekly scoring helpers ───────────────────────────────────────────────────
-  function nextFriday(): Date {
-    const now = new Date()
-    const day = now.getUTCDay()
-    const daysAway = (5 - day + 7) % 7 || 7
-    const d = new Date(now)
-    d.setUTCDate(now.getUTCDate() + daysAway)
-    d.setUTCHours(0, 0, 0, 0)
-    return d
-  }
-
-  function startOfWeek(): Date {
-    const now = new Date()
-    const day = now.getUTCDay()
-    const daysSinceFri = (day - 5 + 7) % 7
-    const d = new Date(now)
-    d.setUTCDate(now.getUTCDate() - daysSinceFri)
-    d.setUTCHours(0, 0, 0, 0)
-    return d
-  }
-
-  // Points earned/lost from resolved predictions this week
-  const weekStart = startOfWeek()
+  // Points earned/lost on the latest Judgment Day (same window as the weekly Leaders board)
+  const weekStart = new Date(lastJudgmentDay().getTime() - 7 * 86400_000 + 1000)
   const thisWeekResolved = predictions.filter(p =>
     p.resolved && p.result && new Date(p.resolution_date ?? p.created_at) >= weekStart
   )
@@ -581,7 +553,7 @@ export default function BrandPage() {
                 <span className="text-[#C9A84C] text-[10px] font-bold uppercase tracking-wider">Score Update</span>
               </div>
               <div className="text-white font-black text-lg tabular-nums leading-none">{scoreCountdown}</div>
-              <div className="text-[#6b7280] text-[10px] mt-1">Scores lock every Friday</div>
+              <div className="text-[#6b7280] text-[10px] mt-1">Judgment Day · Fridays 4:30 PM ET</div>
             </div>
 
             {/* This week's activity */}
