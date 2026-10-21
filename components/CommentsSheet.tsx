@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import ProfileLink from './ProfileLink'
+import FollowButton from './FollowButton'
 
 interface Comment {
   id: string
   body: string
   created_at: string
+  user_id: string
   profiles: { username: string; level: string } | null
 }
 
@@ -108,16 +111,19 @@ export default function CommentsSheet({ postId, cardId, articleUrl, title, onClo
             <div className="space-y-4">
               {comments.map(c => (
                 <div key={c.id} className="flex gap-3">
-                  <div
-                    className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-black"
-                    style={{ background: 'linear-gradient(135deg, #1B3066, #C9A84C)', color: '#fff' }}
+                  <ProfileLink
+                    userId={c.user_id}
+                    className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-black text-white"
                   >
-                    {(c.profiles?.username ?? '?')[0].toUpperCase()}
-                  </div>
+                    <span className="w-full h-full rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #1B3066, #C9A84C)' }}>
+                      {(c.profiles?.username ?? '?')[0].toUpperCase()}
+                    </span>
+                  </ProfileLink>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-white text-xs font-bold">{c.profiles?.username ?? 'Anonymous'}</span>
+                      <ProfileLink userId={c.user_id} className="text-white text-xs font-bold truncate">{c.profiles?.username ?? 'Anonymous'}</ProfileLink>
                       <span className="text-[#4b5563] text-[10px]">{timeAgo(c.created_at)}</span>
+                      <FollowButton targetId={c.user_id} size="sm" className="ml-auto" />
                     </div>
                     <p className="text-[#d1d5db] text-sm leading-relaxed">{c.body}</p>
                   </div>

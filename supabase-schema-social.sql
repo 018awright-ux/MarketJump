@@ -79,3 +79,9 @@ create trigger on_follow_change
 update public.profiles p set
   followers = (select count(*) from public.follows f where f.following_id = p.id),
   following = (select count(*) from public.follows f where f.follower_id = p.id);
+
+-- ── Profile visibility (Edit Brand → "Visible on your page") ──
+-- Keys: stats, audience, agreed, live, history, posts. Hides those sections from
+-- visitors in the app; the underlying rows stay readable (leaderboard and scoring need them).
+alter table public.profiles
+  add column if not exists hidden_sections text[] not null default '{}';

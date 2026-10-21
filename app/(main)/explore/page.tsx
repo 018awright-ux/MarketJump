@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useRef } from 'react'
+import FollowButton from '@/components/FollowButton'
 import { useRouter } from 'next/navigation'
 import type { JumpCard, UserLevel } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
@@ -445,8 +446,9 @@ export default function ExplorePage() {
         {searchMode === 'people' && brandResults.length > 0 && (
           <div className="mt-2 space-y-2">
             {brandResults.map(b => (
-              <button key={b.id} onClick={() => router.push(`/profile/${b.id}`)}
-                className="w-full flex items-center gap-3 p-3 rounded-2xl border border-[#2a2a3a] bg-[#12121a] hover:border-[#C9A84C]/30 transition-colors">
+              <div key={b.id} role="link" tabIndex={0} onClick={() => router.push(`/profile/${b.id}`)}
+                onKeyDown={e => { if (e.key === 'Enter') router.push(`/profile/${b.id}`) }}
+                className="w-full flex items-center gap-3 p-3 rounded-2xl border border-[#2a2a3a] bg-[#12121a] hover:border-[#C9A84C]/30 transition-colors cursor-pointer">
                 <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-base flex-shrink-0"
                   style={{ background: 'linear-gradient(135deg, #1B3066, #C9A84C)', color: '#fff' }}>
                   {(b.brand_name || b.username)[0].toUpperCase()}
@@ -456,7 +458,8 @@ export default function ExplorePage() {
                   <div className="text-[#6b7280] text-xs">{b.accuracy?.toFixed(1)}% acc · {b.market_score} score</div>
                 </div>
                 <div className="text-[#C9A84C] text-xs font-bold capitalize">{b.level}</div>
-              </button>
+                <FollowButton targetId={b.id} size="sm" />
+              </div>
             ))}
           </div>
         )}
@@ -812,8 +815,9 @@ export default function ExplorePage() {
             {topBrands.length > 0 ? (
               <div className="space-y-2">
                 {topBrands.map(b => (
-                  <button key={b.id} onClick={() => router.push(`/profile/${b.id}`)}
-                    className="w-full flex items-center gap-3 p-3 rounded-2xl border border-[#2a2a3a] bg-[#12121a] hover:border-[#C9A84C]/30 transition-colors">
+                  <div key={b.id} role="link" tabIndex={0} onClick={() => router.push(`/profile/${b.id}`)}
+                    onKeyDown={e => { if (e.key === 'Enter') router.push(`/profile/${b.id}`) }}
+                    className="w-full flex items-center gap-3 p-3 rounded-2xl border border-[#2a2a3a] bg-[#12121a] hover:border-[#C9A84C]/30 transition-colors cursor-pointer">
                     <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-base flex-shrink-0"
                       style={{ background: 'linear-gradient(135deg, #1B3066, #C9A84C)', color: '#fff' }}>
                       {(b.brand_name || b.username)[0].toUpperCase()}
@@ -823,7 +827,8 @@ export default function ExplorePage() {
                       <div className="text-[#6b7280] text-xs">{b.accuracy?.toFixed(1)}% acc · {b.market_score} score</div>
                     </div>
                     <div className="text-[#C9A84C] text-xs font-bold capitalize">{b.level}</div>
-                  </button>
+                    <FollowButton targetId={b.id} size="sm" />
+                  </div>
                 ))}
               </div>
             ) : (

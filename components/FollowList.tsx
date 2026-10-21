@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/client'
 import LevelBadge from '@/components/LevelBadge'
 import FollowButton from '@/components/FollowButton'
 import type { UserLevel } from '@/lib/types'
+import { useFollowState } from '@/lib/followStore'
+import { fetchHiddenSections } from '@/lib/profilePrivacy'
 
 interface ListProfile {
   id: string
@@ -25,11 +27,10 @@ export default function FollowList({ profileId, mode }: { profileId: string; mod
 
   const [people, setPeople] = useState<ListProfile[]>([])
   const [displayName, setDisplayName] = useState('')
-  const [viewerId, setViewerId] = useState<string | null>(null)
-  // Who the viewer already follows, so each row's button starts in the right state
-  const [viewerFollows, setViewerFollows] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
+  const [audienceHidden, setAudienceHidden] = useState(false)
+  const { ready: viewerReady, viewerId } = useFollowState(profileId)
 
   useEffect(() => {
     let cancelled = false
@@ -49,12 +50,13 @@ export default function FollowList({ profileId, mode }: { profileId: string; mod
             .eq('follower_id', profileId)
             .order('created_at', { ascending: false })
 
-      const [{ data: owner }, { data: rows, error }, { data: { user } }] = await Promise.all([
+      const [{ data: owner }, { data: rows, error }, hidden] = await Promise.all([
         supabase.from('profiles').select('username, brand_name').eq('id', profileId).single(),
         listQuery,
-        supabase.auth.getUser(),
+        fetchHiddenSections(supabase, profileId),
       ])
       if (cancelled) return
+      setAudienceHidden(hidden.includes('audience'))
 
       if (owner) setDisplayName(owner.brand_name || owner.username)
       if (error) {
@@ -66,18 +68,7 @@ export default function FollowList({ profileId, mode }: { profileId: string; mod
         .map((r: { person: ListProfile | ListProfile[] }) => (Array.isArray(r.person) ? r.person[0] : r.person))
         .filter(Boolean) as ListProfile[]
       setPeople(list)
-
-      setViewerId(user?.id ?? null)
-      if (user && list.length) {
-        const { data: mine } = await supabase
-          .from('follows')
-          .select('following_id')
-          .eq('follower_id', user.id)
-          .in('following_id', list.map(p => p.id))
-        if (!cancelled) setViewerFollows(new Set((mine ?? []).map((m: { following_id: string }) => m.following_id)))
-      }
-
-      if (!cancelled) setLoading(false)
+      setLoading(false)
     }
     load()
     return () => { cancelled = true }
@@ -103,9 +94,13 @@ export default function FollowList({ profileId, mode }: { profileId: string; mod
         <h1 className="text-white font-black text-lg truncate">{title}</h1>
       </div>
 
-      {loading ? (
+      {loading || !viewerReady ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-[#6b7280] text-sm animate-pulse">Loading...</div>
+        </div>
+      ) : audienceHidden && viewerId !== profileId ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-[#6b7280] text-sm">This brand keeps its Audience private.</div>
         </div>
       ) : people.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
@@ -140,12 +135,7 @@ export default function FollowList({ profileId, mode }: { profileId: string; mod
                     </div>
                   </div>
                 </Link>
-                <FollowButton
-                  targetId={person.id}
-                  size="sm"
-                  viewerId={viewerId}
-                  initialFollowing={viewerFollows.has(person.id)}
-                />
+                <FollowButton targetId={person.id} size="sm" />
               </div>
             )
           })}

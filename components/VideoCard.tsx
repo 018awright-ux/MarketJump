@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import ProfileLink from './ProfileLink'
+import FollowButton from './FollowButton'
 import type { VideoPost } from '@/lib/types'
 import LevelBadge from './LevelBadge'
 
@@ -233,13 +235,14 @@ export default function VideoCard({ post, onBullish, onBearish, onDeleted, userI
 
           {/* Author */}
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-full bg-[#1e2d4a] flex items-center justify-center text-sm font-bold text-[#C9A84C]">
+            <ProfileLink userId={post.user_id} className="w-8 h-8 rounded-full bg-[#1e2d4a] flex items-center justify-center text-sm font-bold text-[#C9A84C] flex-shrink-0">
               {post.author?.username?.[0]?.toUpperCase() ?? '?'}
-            </div>
-            <div>
+            </ProfileLink>
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-white text-sm font-bold">{post.author?.username ?? 'Unknown'}</span>
+                <ProfileLink userId={post.user_id} className="text-white text-sm font-bold truncate">{post.author?.username ?? 'Unknown'}</ProfileLink>
                 {post.author?.level && <LevelBadge level={post.author.level} />}
+                <FollowButton targetId={post.user_id} size="sm" className="ml-auto" />
               </div>
               <div className="flex items-center gap-2 mt-0.5">
                 {post.created_at && <span className="text-[#4b5563] text-[10px]">{timeAgo(post.created_at)}</span>}
@@ -491,11 +494,12 @@ export default function VideoCard({ post, onBullish, onBearish, onDeleted, userI
       <div className="px-4 py-3 border-t border-[#1e2d4a]">
         {/* Author */}
         <div className="flex items-center gap-2 mb-2">
-          <div className="w-7 h-7 rounded-full bg-[#1e2d4a] flex items-center justify-center text-xs font-bold text-[#C9A84C]">
+          <ProfileLink userId={post.user_id} className="w-7 h-7 rounded-full bg-[#1e2d4a] flex items-center justify-center text-xs font-bold text-[#C9A84C] flex-shrink-0">
             {post.author?.username?.[0]?.toUpperCase() ?? '?'}
-          </div>
-          <span className="text-white text-sm font-bold">{post.author?.username ?? 'Unknown'}</span>
+          </ProfileLink>
+          <ProfileLink userId={post.user_id} className="text-white text-sm font-bold truncate">{post.author?.username ?? 'Unknown'}</ProfileLink>
           {post.author?.level && <LevelBadge level={post.author.level} />}
+          <FollowButton targetId={post.user_id} size="sm" />
           <div className="ml-auto flex items-center gap-2">
             {post.created_at && (
               <span className="text-[#4b5563] text-[10px]">{timeAgo(post.created_at)}</span>

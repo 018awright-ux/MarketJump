@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import ProfileLink from '@/components/ProfileLink'
+import FollowButton from '@/components/FollowButton'
 import { createClient } from '@/lib/supabase/client'
 import type { JumpCard, VideoPost, UserLevel } from '@/lib/types'
 import ExpandedCard from '@/components/ExpandedCard'
@@ -399,7 +401,8 @@ export default function TickerDetailView({ ticker, contextBadge, onClose }: Prop
                           {current.data.stance === 'bullish' ? '🐂 Bullish' :
                            current.data.stance === 'bearish' ? '🐻 Bearish' : '👀 Watching'}
                         </span>
-                        <span className="text-[#6b7280] text-xs">by {current.data.author?.username ?? 'Anonymous'}</span>
+                        <span className="text-[#6b7280] text-xs">by <ProfileLink userId={current.data.user_id} className="text-white font-bold">{current.data.author?.username ?? 'Anonymous'}</ProfileLink></span>
+                        <FollowButton targetId={current.data.user_id} size="sm" className="ml-auto" />
                       </div>
                       {current.data.caption && (
                         <p className="text-[#9ca3af] text-sm leading-relaxed">{current.data.caption}</p>

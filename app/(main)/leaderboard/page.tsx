@@ -3,6 +3,8 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback } from 'react'
+import ProfileLink from '@/components/ProfileLink'
+import FollowButton from '@/components/FollowButton'
 import { useRouter } from 'next/navigation'
 import LevelBadge from '@/components/LevelBadge'
 import PullIndicator from '@/components/PullIndicator'
@@ -188,10 +190,11 @@ function GoToCallerSection({
                   <div key={caller.id} className="flex items-center gap-2">
                     <span className="text-[#C9A84C] font-black text-xs w-3">{i + 1}</span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-white font-bold text-xs truncate">{caller.brand_name ?? caller.username}</div>
+                      <ProfileLink userId={caller.id} className="block text-white font-bold text-xs truncate">{caller.brand_name ?? caller.username}</ProfileLink>
                       <div className="text-[#6b7280] text-[10px] truncate">{caller.top_call}</div>
                     </div>
                     <LevelBadge level={caller.level} />
+                    <FollowButton targetId={caller.id} size="sm" />
                   </div>
                 ))}
               </div>
@@ -206,7 +209,7 @@ function GoToCallerSection({
                 {results[0].second_team.map((caller, i) => (
                   <div key={caller.id} className="text-xs">
                     <span className="text-[#9CA3AF] font-bold">#{i + 6}</span>
-                    <span className="text-white ml-1 truncate">{caller.brand_name ?? caller.username}</span>
+                    <ProfileLink userId={caller.id} className="text-white ml-1 truncate">{caller.brand_name ?? caller.username}</ProfileLink>
                   </div>
                 ))}
               </div>
@@ -220,7 +223,7 @@ function GoToCallerSection({
               <div className="grid grid-cols-2 gap-1">
                 {results[0].callers.map((caller, i) => (
                   <div key={caller.id} className="text-[10px] text-[#6b7280]">
-                    #{i + 11} {caller.brand_name ?? caller.username}
+                    #{i + 11} <ProfileLink userId={caller.id}>{caller.brand_name ?? caller.username}</ProfileLink>
                   </div>
                 ))}
               </div>
@@ -250,7 +253,7 @@ function GoToCallerSection({
                         {hist.first_team.map((c, i) => (
                           <div key={c.id} className="flex items-center gap-2 text-xs">
                             <span className="text-[#C9A84C] font-bold w-3">{i + 1}</span>
-                            <span className="text-white">{c.brand_name ?? c.username}</span>
+                            <ProfileLink userId={c.id} className="text-white">{c.brand_name ?? c.username}</ProfileLink>
                           </div>
                         ))}
                       </div>
@@ -552,10 +555,13 @@ export default function LeaderboardPage() {
             ) : (
               <div className="space-y-2">
                 {entries.map(entry => (
-                  <button
+                  <div
                     key={entry.user_id}
+                    role="link"
+                    tabIndex={0}
                     onClick={() => router.push(`/profile/${entry.user_id}`)}
-                    className="w-full bg-[#12121a] rounded-2xl border border-[#2a2a3a] p-4 flex items-center gap-4 hover:border-[#3a3a4a] transition-colors active:scale-[0.98]"
+                    onKeyDown={e => { if (e.key === 'Enter') router.push(`/profile/${entry.user_id}`) }}
+                    className="w-full bg-[#12121a] rounded-2xl border border-[#2a2a3a] p-4 flex items-center gap-3 hover:border-[#3a3a4a] transition-colors active:scale-[0.98] cursor-pointer"
                   >
                     <div className="w-8 text-center flex-shrink-0">
                       {RANK_ICONS[entry.rank] ? (
@@ -588,7 +594,8 @@ export default function LeaderboardPage() {
                         {activeTab === 'all_time' ? 'Score' : 'Pts'}
                       </div>
                     </div>
-                  </button>
+                    <FollowButton targetId={entry.user_id} size="sm" />
+                  </div>
                 ))}
               </div>
             )}
