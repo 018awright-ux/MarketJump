@@ -11,7 +11,6 @@ import TickerDetailView from '@/components/TickerDetailView'
 import PullIndicator from '@/components/PullIndicator'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import type { UserLevel } from '@/lib/types'
-import { HIDEABLE_SECTIONS, fetchHiddenSections, type HideableSection } from '@/lib/profilePrivacy'
 
 interface BrandProfile {
   id: string
@@ -150,9 +149,6 @@ export default function BrandPage() {
   const [editLogoUrl, setEditLogoUrl] = useState('')
   const [editInterests, setEditInterests] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
-  const [hiddenSections, setHiddenSections] = useState<HideableSection[]>([])
-  const [editHidden, setEditHidden] = useState<HideableSection[]>([])
-  const [saveError, setSaveError] = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const avatarInputRef = useRef<HTMLInputElement>(null)
@@ -240,9 +236,6 @@ export default function BrandPage() {
       setEditAvatarUrl(p.brand_avatar_url ?? '')
       setEditLogoUrl(p.brand_logo_url ?? '')
       setEditInterests((p as BrandProfile).interests ?? [])
-      const hidden = await fetchHiddenSections(supabase, user.id)
-      setHiddenSections(hidden)
-      setEditHidden(hidden)
     }
 
     const { data: preds } = await supabase
@@ -383,20 +376,7 @@ export default function BrandPage() {
       .select()
       .single()
     if (data) setProfile({ ...profile, ...data })
-
-    // Saved separately so a missing hidden_sections column can't break the rest of the brand save
-    const { error: hideErr } = await supabase
-      .from('profiles')
-      .update({ hidden_sections: editHidden })
-      .eq('id', profile.id)
     setSaving(false)
-    if (hideErr) {
-      console.error('Saving hidden sections failed:', hideErr.message)
-      setSaveError('Brand saved, but your visibility settings could not be saved. Try again shortly.')
-      return
-    }
-    setHiddenSections(editHidden)
-    setSaveError(null)
     setEditOpen(false)
   }
 
@@ -560,11 +540,6 @@ export default function BrandPage() {
 
           {/* Audience + Following — tap to open the lists */}
           <AudienceStats profileId={profile.id} followers={profile.followers} following={profile.following} className="mb-3" />
-          {hiddenSections.length > 0 && (
-            <p className="text-[#6b7280] text-[11px] -mt-1 mb-3">
-              👁‍🗨 Hidden from visitors: {HIDEABLE_SECTIONS.filter(h => hiddenSections.includes(h.key)).map(h => h.label).join(', ')}
-            </p>
-          )}
 
           {/* B. Brand Stats grid */}
           <div className="grid grid-cols-3 gap-2 mb-3">
@@ -894,7 +869,7 @@ export default function BrandPage() {
             Sign out
           </button>
           <button
-            onClick={() => { setEditHidden(hiddenSections); setSaveError(null); setEditOpen(true) }}
+            onClick={() => setEditOpen(true)}
             className="flex-1 py-2.5 rounded-xl text-sm font-bold border border-[#C9A84C]/40 text-[#C9A84C] hover:bg-[#C9A84C]/10 transition-colors"
           >
             Edit Brand
@@ -1288,45 +1263,6 @@ export default function BrandPage() {
                     })}
                   </div>
                 </div>
-
-                {/* Visibility — what visitors can see on your page */}
-                <div>
-                  <label className="text-[#9ca3af] text-xs uppercase tracking-wider mb-1 block">Visible on your page</label>
-                  <p className="text-[#6b7280] text-[11px] mb-2">Turn off anything you want hidden from visitors. You always see everything.</p>
-                  <div className="rounded-xl border border-[#2a2a3a] divide-y divide-[#2a2a3a] bg-[#12121a]">
-                    {HIDEABLE_SECTIONS.map(section => {
-                      const visible = !editHidden.includes(section.key)
-                      return (
-                        <button
-                          key={section.key}
-                          type="button"
-                          role="switch"
-                          aria-checked={visible}
-                          onClick={() => setEditHidden(prev =>
-                            visible ? [...prev, section.key] : prev.filter(k => k !== section.key)
-                          )}
-                          className="w-full flex items-center gap-3 px-4 py-3 text-left"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className={`text-sm font-bold ${visible ? 'text-white' : 'text-[#6b7280]'}`}>{section.label}</div>
-                            <div className="text-[#6b7280] text-[11px] truncate">{section.hint}</div>
-                          </div>
-                          <span
-                            className="w-10 h-6 rounded-full p-0.5 flex-shrink-0 transition-colors"
-                            style={{ background: visible ? '#C9A84C' : '#2a2a3a' }}
-                          >
-                            <span
-                              className="block w-5 h-5 rounded-full bg-white transition-transform"
-                              style={{ transform: visible ? 'translateX(16px)' : 'translateX(0)' }}
-                            />
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {saveError && <p className="text-[#FF3B30] text-xs">{saveError}</p>}
 
                 <div className="pb-8">
                   <button

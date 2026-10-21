@@ -8,7 +8,6 @@ import { createClient } from '@/lib/supabase/client'
 import LevelBadge from '@/components/LevelBadge'
 import FollowButton from '@/components/FollowButton'
 import AudienceStats from '@/components/AudienceStats'
-import { fetchHiddenSections, type HideableSection } from '@/lib/profilePrivacy'
 import type { UserLevel } from '@/lib/types'
 
 interface BrandProfile {
@@ -85,7 +84,6 @@ function PublicBrandContent() {
   const [myId, setMyId] = useState<string | null>(null)
   const [myVote, setMyVote] = useState<'agreed' | 'disagreed' | null>(null)
   const [copied, setCopied] = useState(false)
-  const [hidden, setHidden] = useState<HideableSection[]>([])
 
   useEffect(() => {
     load()
@@ -124,7 +122,6 @@ function PublicBrandContent() {
     }
 
     if (p) setProfile(p as BrandProfile)
-    setHidden(await fetchHiddenSections(supabase, id))
 
     // Fetch predictions
     const { data: preds } = await supabase
@@ -214,12 +211,6 @@ function PublicBrandContent() {
   const totalVotes = (profile.agreed_count || 0) + (profile.disagreed_count || 0)
   const agreedPct = totalVotes > 0 ? Math.round((profile.agreed_count / totalVotes) * 100) : 0
   const isOwnProfile = myId === id
-  // Sections the owner chose to hide from visitors (they always see their own)
-  const isHidden = (section: HideableSection) => !isOwnProfile && hidden.includes(section)
-  const tabs = (['live', 'history', 'analysis'] as const).filter(t =>
-    !isHidden(t === 'analysis' ? 'posts' : t)
-  )
-  const shownTab = tabs.includes(activeTab) ? activeTab : tabs[0]
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -273,12 +264,12 @@ function PublicBrandContent() {
               )}
               <div className="mt-2 flex items-center gap-2 flex-wrap">
                 <LevelBadge level={profile.level} />
-                {streak.type === 'hot' && !isHidden('history') && (
+                {streak.type === 'hot' && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400 text-xs font-bold">
                     🔥 {streak.count} move streak
                   </span>
                 )}
-                {streak.type === 'cold' && !isHidden('history') && (
+                {streak.type === 'cold' && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 text-xs font-bold">
                     ❄️ Cold streak ({streak.count})
                   </span>
@@ -288,7 +279,7 @@ function PublicBrandContent() {
           </div>
 
           {/* Stats 2x2 grid */}
-          {!isHidden('stats') && <div className="grid grid-cols-2 gap-2 mb-4">
+          <div className="grid grid-cols-2 gap-2 mb-4">
             {[
               { label: 'Brand Score', value: profile.market_score.toLocaleString(), color: '#C9A84C' },
               { label: 'Accuracy', value: `${profile.accuracy?.toFixed(1)}%`, color: '#00C805' },
@@ -303,11 +294,9 @@ function PublicBrandContent() {
                 <div className="text-[#6b7280] text-[9px] uppercase tracking-wider mt-0.5">{stat.label}</div>
               </div>
             ))}
-          </div>}
+          </div>
 
-          {!isHidden('audience') && (
-            <AudienceStats profileId={id} followers={profile.followers} following={profile.following} className="mb-4" />
-          )}
+          <AudienceStats profileId={id} followers={profile.followers} following={profile.following} className="mb-4" />
 
           {/* Follow button (hidden on own profile) */}
           {!isOwnProfile && (
@@ -319,7 +308,7 @@ function PublicBrandContent() {
         </div>
 
         {/* Agreed By section */}
-        {!isHidden('agreed') && <div className="px-5 py-4 border-b border-[#C9A84C]/10">
+        <div className="px-5 py-4 border-b border-[#C9A84C]/10">
           <div className="text-white font-bold text-sm mb-2">
             Agreed by {profile.agreed_count} traders
           </div>
@@ -371,17 +360,17 @@ function PublicBrandContent() {
               <div className="text-[#6b7280] text-[10px]">Based on Brand Score & accuracy</div>
             </div>
           )}
-        </div>}
+        </div>
 
         {/* Tabs */}
         <div className="px-5 pt-4">
-          {tabs.length > 0 && <div className="flex gap-1 bg-[rgba(8,12,20,0.88)] rounded-xl p-1 border border-[#C9A84C]/20 mb-4 backdrop-blur-md">
-            {tabs.map(tab => (
+          <div className="flex gap-1 bg-[rgba(8,12,20,0.88)] rounded-xl p-1 border border-[#C9A84C]/20 mb-4 backdrop-blur-md">
+            {(['live', 'history', 'analysis'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${
-                  shownTab === tab
+                  activeTab === tab
                     ? 'bg-[#C9A84C] text-black'
                     : 'text-[#6b7280] hover:text-white'
                 }`}
@@ -389,14 +378,10 @@ function PublicBrandContent() {
                 {tab === 'live' ? 'Live Moves' : tab === 'history' ? 'Move History' : 'Analysis'}
               </button>
             ))}
-          </div>}
+          </div>
 
           {/* Live Moves */}
-          {tabs.length === 0 && (
-            <div className="text-center py-10 text-[#6b7280] text-sm">This brand keeps its Moves private.</div>
-          )}
-
-          {shownTab === 'live' && (
+          {activeTab === 'live' && (
             <div className="space-y-2 pb-4">
               {liveMoves.length === 0 ? (
                 <div className="text-center py-10 text-[#6b7280] text-sm">No live moves right now.</div>
@@ -429,7 +414,7 @@ function PublicBrandContent() {
           )}
 
           {/* Move History */}
-          {shownTab === 'history' && (
+          {activeTab === 'history' && (
             <div className="space-y-2 pb-4">
               {(bestMove || worstMove) && (
                 <div className="grid grid-cols-2 gap-2 mb-3">
@@ -492,7 +477,7 @@ function PublicBrandContent() {
           )}
 
           {/* Analysis */}
-          {shownTab === 'analysis' && (
+          {activeTab === 'analysis' && (
             <div className="space-y-2 pb-4">
               {posts.length === 0 ? (
                 <div className="text-center py-10 text-[#6b7280] text-sm">No analysis posted yet.</div>

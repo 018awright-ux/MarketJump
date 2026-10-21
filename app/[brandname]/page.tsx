@@ -4,7 +4,6 @@ import type { UserLevel } from '@/lib/types'
 import LevelBadge from '@/components/LevelBadge'
 import FollowButton from '@/components/FollowButton'
 import AudienceStats from '@/components/AudienceStats'
-import { fetchHiddenSections, type HideableSection } from '@/lib/profilePrivacy'
 
 interface BrandProfile {
   id: string
@@ -34,7 +33,7 @@ interface Prediction {
   resolved: boolean
 }
 
-async function fetchBrandData(brandname: string): Promise<{ profile: BrandProfile | null; predictions: Prediction[]; hidden: HideableSection[] }> {
+async function fetchBrandData(brandname: string): Promise<{ profile: BrandProfile | null; predictions: Prediction[] }> {
   const supabase = await createClient()
 
   // Try brand_name first (case-insensitive)
@@ -54,25 +53,16 @@ async function fetchBrandData(brandname: string): Promise<{ profile: BrandProfil
     profile = byUsername
   }
 
-  if (!profile) return { profile: null, predictions: [], hidden: [] }
-
-  // This is the public share page, so hidden sections are hidden for everyone — and never sent to the browser
-  const hidden = await fetchHiddenSections(supabase, profile.id)
-  const showLive = !hidden.includes('live')
-  const showHistory = !hidden.includes('history')
-  if (!showLive && !showHistory) return { profile: profile as BrandProfile, predictions: [], hidden }
+  if (!profile) return { profile: null, predictions: [] }
 
   const { data: predictions } = await supabase
     .from('predictions')
     .select('id, ticker, prediction, price_at_prediction, result, created_at, resolved')
     .eq('user_id', profile.id)
     .order('created_at', { ascending: false })
-    .limit(showLive && showHistory ? 5 : 20)
+    .limit(5)
 
-  const visible = ((predictions ?? []) as Prediction[])
-    .filter(p => (p.resolved ? showHistory : showLive))
-    .slice(0, 5)
-  return { profile: profile as BrandProfile, predictions: visible, hidden }
+  return { profile: profile as BrandProfile, predictions: (predictions ?? []) as Prediction[] }
 }
 
 function computeStreak(preds: Prediction[]): { type: 'hot' | 'cold' | 'none'; count: number } {
@@ -130,8 +120,7 @@ export default async function PublicBrandPage({
   params: Promise<{ brandname: string }>
 }) {
   const { brandname } = await params
-  const { profile, predictions, hidden } = await fetchBrandData(brandname)
-  const isHidden = (section: HideableSection) => hidden.includes(section)
+  const { profile, predictions } = await fetchBrandData(brandname)
 
   if (!profile) {
     return (
@@ -200,12 +189,12 @@ export default async function PublicBrandPage({
             )}
             <div className="mt-2 flex items-center gap-2 flex-wrap">
               <LevelBadge level={profile.level} />
-              {streak.type === 'hot' && !isHidden('history') && (
+              {streak.type === 'hot' && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400 text-xs font-bold">
                   🔥 {streak.count} move streak
                 </span>
               )}
-              {streak.type === 'cold' && !isHidden('history') && (
+              {streak.type === 'cold' && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 text-xs font-bold">
                   ❄️ Cold streak ({streak.count})
                 </span>
@@ -215,12 +204,12 @@ export default async function PublicBrandPage({
         </div>
 
         {/* Key stats row */}
-        {!isHidden('stats') && <div className={`grid gap-2 ${isHidden('agreed') ? 'grid-cols-3' : 'grid-cols-4'}`}>
+        <div className="grid grid-cols-4 gap-2">
           {[
             { label: 'Brand Score', value: profile.market_score.toLocaleString(), color: '#C9A84C' },
             { label: 'Accuracy', value: `${profile.accuracy?.toFixed(1)}%`, color: '#00C805' },
             { label: 'Total Moves', value: profile.total_predictions, color: 'white' },
-            ...(isHidden('agreed') ? [] : [{ label: 'Agreed By', value: profile.agreed_count, color: '#C9A84C' }]),
+            { label: 'Agreed By', value: profile.agreed_count, color: '#C9A84C' },
           ].map((stat, i) => (
             <div
               key={i}
@@ -230,19 +219,17 @@ export default async function PublicBrandPage({
               <div className="text-[#6b7280] text-[9px] uppercase tracking-wider mt-0.5">{stat.label}</div>
             </div>
           ))}
-        </div>}
+        </div>
 
         {/* Audience + Following */}
-        {!isHidden('audience') && (
-          <AudienceStats profileId={profile.id} followers={profile.followers} following={profile.following} className="mt-4" />
-        )}
+        <AudienceStats profileId={profile.id} followers={profile.followers} following={profile.following} className="mt-4" />
 
         <div className="mt-4">
           <FollowButton targetId={profile.id} />
         </div>
 
         {/* Credibility bar */}
-        {totalVotes > 0 && !isHidden('agreed') && (
+        {totalVotes > 0 && (
           <div className="mt-4">
             <div className="flex justify-between text-[10px] text-[#9ca3af] mb-1">
               <span>Agreed by {profile.agreed_count} traders</span>
@@ -263,7 +250,7 @@ export default async function PublicBrandPage({
       </div>
 
       {/* Recent Moves */}
-      {!(isHidden('live') && isHidden('history')) && <div className="px-5 py-5">
+      <div className="px-5 py-5">
         <div className="text-[#9ca3af] text-xs uppercase tracking-wider font-bold mb-3">
           Recent Moves
         </div>
@@ -306,7 +293,7 @@ export default async function PublicBrandPage({
             ))}
           </div>
         )}
-      </div>}
+      </div>
 
       {/* Big CTA */}
       <div className="px-5 pb-10 pt-2">

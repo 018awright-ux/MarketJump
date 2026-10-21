@@ -7,8 +7,6 @@ import { createClient } from '@/lib/supabase/client'
 import LevelBadge from '@/components/LevelBadge'
 import FollowButton from '@/components/FollowButton'
 import type { UserLevel } from '@/lib/types'
-import { useFollowState } from '@/lib/followStore'
-import { fetchHiddenSections } from '@/lib/profilePrivacy'
 
 interface ListProfile {
   id: string
@@ -29,8 +27,6 @@ export default function FollowList({ profileId, mode }: { profileId: string; mod
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
-  const [audienceHidden, setAudienceHidden] = useState(false)
-  const { ready: viewerReady, viewerId } = useFollowState(profileId)
 
   useEffect(() => {
     let cancelled = false
@@ -50,13 +46,11 @@ export default function FollowList({ profileId, mode }: { profileId: string; mod
             .eq('follower_id', profileId)
             .order('created_at', { ascending: false })
 
-      const [{ data: owner }, { data: rows, error }, hidden] = await Promise.all([
+      const [{ data: owner }, { data: rows, error }] = await Promise.all([
         supabase.from('profiles').select('username, brand_name').eq('id', profileId).single(),
         listQuery,
-        fetchHiddenSections(supabase, profileId),
       ])
       if (cancelled) return
-      setAudienceHidden(hidden.includes('audience'))
 
       if (owner) setDisplayName(owner.brand_name || owner.username)
       if (error) {
@@ -94,13 +88,9 @@ export default function FollowList({ profileId, mode }: { profileId: string; mod
         <h1 className="text-white font-black text-lg truncate">{title}</h1>
       </div>
 
-      {loading || !viewerReady ? (
+      {loading ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-[#6b7280] text-sm animate-pulse">Loading...</div>
-        </div>
-      ) : audienceHidden && viewerId !== profileId ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-[#6b7280] text-sm">This brand keeps its Audience private.</div>
         </div>
       ) : people.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
