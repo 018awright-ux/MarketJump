@@ -2,13 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { createClient } from '@/lib/supabase/client'
-import { useAIFocus, type AIFocus } from '@/lib/aiFocus'
-import type { UserLevel } from '@/lib/types'
+import { useAIFocus } from '@/lib/aiFocus'
 
-const QUICK_TICKERS = ['SPY', 'NVDA', 'AAPL', 'TSLA', 'MSFT', 'AMZN']
+interface Turn { role: 'user' | 'assistant'; content: string }
+interface Allowance { plan: 'free' | 'pro'; limit: number; used: number; remaining: number; windowLabel: string; resetsAt: string | null }
 
-interface Quote { price: number; changePercent: number }
+const STARTERS = [
+  'How are my open calls looking for Judgment Day?',
+  'Where am I strongest and weakest as a caller?',
+  'What is MarketJump talking about this week, and why?',
+  'How does Judgment Day scoring work?',
+]
 
 function Sparkles({ className }: { className: string }) {
   return (
@@ -20,8 +24,15 @@ function Sparkles({ className }: { className: string }) {
   )
 }
 
+// Minimal formatting for model output: **bold** only; everything else stays plain text
+function Formatted({ text }: { text: string }) {
+  return <>{text.split('**').map((part, i) => (i % 2 ? <strong key={i} className="text-white">{part}</strong> : part))}</>
+}
+
 export default function AIButton() {
   const [open, setOpen] = useState(false)
+  // Conversation lives for the browser session, so closing the drawer doesn't lose it
+  const [turns, setTurns] = useState<Turn[]>([])
 
   return (
     <>
@@ -34,106 +45,89 @@ export default function AIButton() {
           boxShadow: '0 0 4px rgba(109,40,217,0.5)',
           border: '1.5px solid rgba(109,40,217,0.4)',
         }}
-        aria-label="AI Deep Dive"
+        aria-label="AI Consultant"
       >
         <Sparkles className="w-5 h-5 text-white" />
       </button>
 
       {/* Portaled to <body>: the header's backdrop-filter/transform would otherwise
           become the containing block for this fixed drawer and squash it into the header row */}
-      {open && createPortal(<DeepDiveDrawer onClose={() => setOpen(false)} />, document.body)}
+      {open && createPortal(<ConsultantDrawer turns={turns} setTurns={setTurns} onClose={() => setOpen(false)} />, document.body)}
     </>
   )
 }
 
-function DeepDiveDrawer({ onClose }: { onClose: () => void }) {
+function ConsultantDrawer({ turns, setTurns, onClose }: {
+  turns: Turn[]
+  setTurns: React.Dispatch<React.SetStateAction<Turn[]>>
+  onClose: () => void
+}) {
   const focus = useAIFocus()
-  // Snapshot the on-screen stock when the drawer opens; the user can switch tickers from here
-  const [target, setTarget] = useState<AIFocus | null>(focus)
+  // Snapshot the stock on screen when the drawer opens
+  const [focusTicker] = useState(focus?.ticker && /^[A-Z.]{1,6}$/.test(focus.ticker) ? focus.ticker : null)
   const [input, setInput] = useState('')
-  const [level, setLevel] = useState<UserLevel>('rookie')
-  const [quote, setQuote] = useState<Quote | null>(null)
-  const [analysis, setAnalysis] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const requestId = useRef(0)
+  const [streaming, setStreaming] = useState(false)
+  const [allowance, setAllowance] = useState<Allowance | null>(null)
+  const [limitHit, setLimitHit] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const supabase = createClient()
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return
-      const { data } = await supabase.from('profiles').select('level').eq('id', user.id).single()
-      if (data?.level) setLevel(data.level as UserLevel)
-    })
+    fetch('/api/consultant').then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.allowance) { setAllowance(d.allowance); setLimitHit(d.allowance.remaining <= 0) }
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
-    if (target) analyse(target)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target, level])
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
+  }, [turns])
 
-  async function analyse(t: AIFocus) {
-    const id = ++requestId.current
-    setLoading(true)
-    setAnalysis('')
-    setError(null)
-    setQuote(null)
+  async function ask(question: string) {
+    const q = question.trim()
+    if (!q || streaming || limitHit) return
+    setInput('')
+    const history: Turn[] = [...turns, { role: 'user', content: q }]
+    setTurns([...history, { role: 'assistant', content: '' }])
+    setStreaming(true)
 
     try {
-      // Live quote + latest company news give Claude something concrete to analyse
-      let context: AIFocus = t
-      if (t.ticker && t.cardType !== 'macro') {
-        const res = await fetch(`/api/stocks/${encodeURIComponent(t.ticker)}`)
-        const data = await res.json()
-        if (id !== requestId.current) return
-        const q = data.quote
-        if (!q || !q.c) {
-          setError('not_found')
-          setLoading(false)
-          return
-        }
-        setQuote({ price: q.c, changePercent: q.dp ?? 0 })
-        const news = data.news?.[0]
-        context = {
-          ...t,
-          changePercent: q.dp ?? t.changePercent,
-          headline: t.headline ?? news?.headline ?? `${t.ticker} trading at $${q.c}`,
-          summary: t.summary ?? news?.summary ?? `Day range $${q.l}–$${q.h}, previous close $${q.pc}.`,
-          source: t.source ?? news?.source ?? 'Finnhub',
-        }
-      }
-
-      const res = await fetch('/api/ai', {
+      const res = await fetch('/api/consultant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cardType: context.cardType ?? 'stock',
-          ticker: context.ticker,
-          headline: context.headline,
-          summary: context.summary,
-          changePercent: context.changePercent,
-          source: context.source,
-          level,
-        }),
+        body: JSON.stringify({ messages: history, focus: focusTicker }),
       })
-      const data = await res.json()
-      if (id !== requestId.current) return
-      if (data.analysis) setAnalysis(data.analysis)
-      else setError(data.error ?? 'unavailable')
+      if (res.status === 402) {
+        const d = await res.json()
+        setAllowance(d.allowance)
+        setLimitHit(true)
+        setTurns(history.slice(0, -1)) // drop the unanswered question; it wasn't counted
+        setInput(q)
+        setStreaming(false)
+        return
+      }
+      if (!res.ok || !res.body) throw new Error(String(res.status))
+
+      const remaining = res.headers.get('X-Questions-Remaining')
+      if (remaining !== null) setAllowance(a => a ? { ...a, remaining: Number(remaining), used: a.limit - Number(remaining) } : a)
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let answer = ''
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        answer += decoder.decode(value, { stream: true })
+        setTurns([...history, { role: 'assistant', content: answer }])
+      }
     } catch {
-      if (id === requestId.current) setError('unavailable')
+      setTurns([...history, { role: 'assistant', content: 'Couldn’t reach the consultant. Check your connection and try again.' }])
     }
-    if (id === requestId.current) setLoading(false)
+    setStreaming(false)
   }
 
-  function pick(ticker: string) {
-    const t = ticker.trim().toUpperCase().replace(/^\$/, '')
-    if (!t) return
-    setInput('')
-    setTarget({ ticker: t })
-  }
-
-  const isPositive = (quote?.changePercent ?? 0) >= 0
+  const starters = focusTicker
+    ? [`What's going on with $${focusTicker} today?`, `How is MarketJump calling $${focusTicker}?`, ...STARTERS.slice(0, 2)]
+    : STARTERS
+  const last = turns[turns.length - 1]
 
   return (
     <div className="fixed inset-0 z-[300] flex items-end justify-center bg-black/50" onClick={onClose}>
@@ -143,104 +137,105 @@ function DeepDiveDrawer({ onClose }: { onClose: () => void }) {
           background: '#0d1422',
           border: '1px solid rgba(109,40,217,0.3)',
           borderBottom: 'none',
-          maxHeight: '85dvh',
-          paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
+          height: '88dvh',
+          paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
         }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex-none px-5 pt-3">
-          <div className="w-10 h-1 rounded-full bg-[#2a2a3a] mx-auto mb-4" />
-          <div className="flex items-center justify-between mb-4">
+        <div className="flex-none px-5 pt-3 pb-3 border-b border-[#2a2a3a]">
+          <div className="w-10 h-1 rounded-full bg-[#2a2a3a] mx-auto mb-3" />
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div
-                className="w-8 h-8 rounded-xl flex items-center justify-center"
-                style={{ background: 'linear-gradient(135deg, #1B3066, #6d28d9)' }}
-              >
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #1B3066, #6d28d9)' }}>
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <div>
-                <div className="text-white font-black text-base leading-tight">AI Deep Dive</div>
-                <div className="text-[#6b7280] text-[10px] uppercase tracking-wider">Tuned for {level}</div>
+                <div className="text-white font-black text-base leading-tight">AI Consultant</div>
+                <div className="text-[#6b7280] text-[10px] uppercase tracking-wider">Knows your calls · tuned to your tier</div>
               </div>
             </div>
-            <button onClick={onClose} aria-label="Close" className="w-8 h-8 flex items-center justify-center rounded-full text-[#6b7280] hover:bg-white/5">
-              ✕
-            </button>
-          </div>
-
-          {/* Ticker picker */}
-          <form onSubmit={e => { e.preventDefault(); pick(input) }} className="flex gap-2 mb-3">
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              placeholder={target ? `Analyse another ticker (now ${target.ticker})` : 'Enter a ticker, e.g. NVDA'}
-              autoCapitalize="characters"
-              autoCorrect="off"
-              className="flex-1 min-w-0 bg-[#12121a] border border-[#2a2a3a] rounded-xl px-3 py-2 text-sm text-white placeholder-[#4b5563] focus:outline-none focus:border-[#6d28d9]"
-            />
-            <button type="submit" className="px-4 rounded-xl text-sm font-bold text-white" style={{ background: '#6d28d9' }}>
-              Go
-            </button>
-          </form>
-          {!target && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              {QUICK_TICKERS.map(t => (
-                <button key={t} onClick={() => pick(t)} className="px-3 py-1 rounded-full text-xs font-bold text-[#C9A84C] border border-[#C9A84C]/30">
-                  ${t}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              {allowance && (
+                <span className="text-[10px] font-bold px-2 py-1 rounded-full" style={{
+                  color: allowance.plan === 'pro' ? '#C9A84C' : '#a78bfa',
+                  background: allowance.plan === 'pro' ? 'rgba(201,168,76,0.12)' : 'rgba(109,40,217,0.15)',
+                }}>
+                  {allowance.plan === 'pro' ? 'PRO · ' : ''}{allowance.remaining} left this {allowance.windowLabel}
+                </span>
+              )}
+              <button onClick={onClose} aria-label="Close" className="w-8 h-8 flex items-center justify-center rounded-full text-[#6b7280] hover:bg-white/5">✕</button>
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5">
-          {target && (
-            <div className="flex items-baseline gap-3 mb-3">
-              <span className="text-white font-black text-2xl">${target.ticker}</span>
-              {quote && (
-                <>
-                  <span className="text-white font-bold">${quote.price.toFixed(2)}</span>
-                  <span className={`font-bold text-sm ${isPositive ? 'text-[#00C805]' : 'text-[#FF3B30]'}`}>
-                    {isPositive ? '+' : ''}{quote.changePercent.toFixed(2)}%
-                  </span>
-                </>
-              )}
+        {/* Conversation */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          {turns.length === 0 && (
+            <div className="py-2">
+              <p className="text-[#9ca3af] text-sm mb-3">
+                Ask about any stock, your open calls, or how markets work. I can see your MarketJump record, your Tracklist and what the community is calling.
+              </p>
+              <div className="flex flex-col gap-2">
+                {starters.map(s => (
+                  <button key={s} onClick={() => ask(s)} disabled={limitHit}
+                    className="text-left text-sm text-[#d1d5db] px-3 py-2 rounded-xl border border-[#2a2a3a] bg-[#12121a] active:scale-[0.98] transition-transform disabled:opacity-40">
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
-          )}
-          {target?.headline && (
-            <p className="text-[#9ca3af] text-xs mb-3 leading-relaxed">{target.headline}</p>
           )}
 
-          {!target ? (
-            <p className="text-[#6b7280] text-sm text-center py-6">Pick a stock and Claude will break it down for you.</p>
-          ) : loading ? (
-            <div className="space-y-2 py-2">
-              <div className="h-3 bg-[#111827] rounded animate-pulse w-full" />
-              <div className="h-3 bg-[#111827] rounded animate-pulse w-4/5" />
-              <div className="h-3 bg-[#111827] rounded animate-pulse w-5/6" />
-              <div className="h-3 bg-[#111827] rounded animate-pulse w-3/4" />
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center gap-2 py-4 text-center">
-              <p className="text-[#6b7280] text-xs leading-relaxed">
-                {error === 'not_found'
-                  ? `Couldn't find a live quote for $${target.ticker}. Check the ticker and try again.`
-                  : error === 'no_key' || error === 'no_credits'
-                    ? 'AI analysis is unavailable: the Claude API key or credits need attention.'
-                    : 'Analysis temporarily unavailable.'}
-              </p>
-              {error === 'unavailable' && (
-                <button onClick={() => analyse(target)} className="text-[#C9A84C] text-xs font-bold border border-[#C9A84C]/30 px-3 py-1 rounded-full">
-                  Retry
-                </button>
-              )}
+          {turns.map((t, i) => t.role === 'user' ? (
+            <div key={i} className="flex justify-end">
+              <div className="max-w-[85%] px-3 py-2 rounded-2xl rounded-br-md text-sm text-white whitespace-pre-wrap" style={{ background: '#6d28d9' }}>{t.content}</div>
             </div>
           ) : (
-            <p className="text-[#d1d5db] text-sm leading-relaxed whitespace-pre-wrap pb-2">{analysis}</p>
+            <div key={i} className="max-w-[95%] text-sm text-[#d1d5db] leading-relaxed whitespace-pre-wrap">
+              {t.content ? <Formatted text={t.content} /> : (
+                <span className="inline-flex items-center gap-2 text-[#6b7280]">
+                  <span className="w-2 h-2 rounded-full bg-[#a78bfa] animate-pulse" /> Analyzing your MarketJump data…
+                </span>
+              )}
+            </div>
+          ))}
+
+          {/* Out of questions */}
+          {limitHit && allowance && (
+            <div className="rounded-2xl p-4 border border-[#C9A84C]/30" style={{ background: 'rgba(201,168,76,0.06)' }}>
+              <div className="text-[#C9A84C] text-xs font-black uppercase tracking-wider mb-1">
+                {allowance.plan === 'pro' ? 'Monthly limit reached' : 'Free questions used'}
+              </div>
+              <p className="text-[#d1d5db] text-sm mb-2">
+                {allowance.plan === 'pro'
+                  ? `You've used all ${allowance.limit} Pro questions this month.`
+                  : `You've used your ${allowance.limit} free questions this week.`}
+                {allowance.resetsAt && ` More unlock ${new Date(allowance.resetsAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}.`}
+              </p>
+              {allowance.plan === 'free' && (
+                <p className="text-[#9ca3af] text-xs">
+                  <span className="text-white font-bold">MarketJump Pro</span> · $20/month · 200 questions a month, all built on your own calls and the MarketJump community. Coming soon.
+                </p>
+              )}
+            </div>
           )}
         </div>
+
+        {/* Input */}
+        <form onSubmit={e => { e.preventDefault(); ask(input) }} className="flex-none flex gap-2 px-5 pt-3 border-t border-[#2a2a3a]">
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value.slice(0, 2000))}
+            placeholder={limitHit ? 'Out of questions for now' : focusTicker ? `Ask about $${focusTicker} or anything else…` : 'Ask the consultant…'}
+            disabled={limitHit}
+            className="flex-1 min-w-0 bg-[#12121a] border border-[#2a2a3a] rounded-xl px-3 py-2.5 text-sm text-white placeholder-[#4b5563] focus:outline-none focus:border-[#6d28d9] disabled:opacity-50"
+          />
+          <button type="submit" disabled={streaming || limitHit || !input.trim()}
+            className="px-4 rounded-xl text-sm font-bold text-white disabled:opacity-40" style={{ background: '#6d28d9' }}>
+            {streaming && last?.role === 'assistant' ? '…' : 'Ask'}
+          </button>
+        </form>
       </div>
     </div>
   )
