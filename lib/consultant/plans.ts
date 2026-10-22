@@ -1,10 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-// MarketJump AI Consultant plans. Pro is $20/month (billing not wired up yet).
+// MarketJump AI Consultant plans (Pro billing not wired up yet).
 // Limits are questions per rolling window; tune them from real usage + cost data.
+// Pro margin check: ~3-5¢ of Claude per question, so 100 questions ≈ $3-5 against $10 minus Stripe fees.
 export const PLANS = {
-  free: { label: 'Free', questions: 5, windowDays: 7, windowLabel: 'week' },
-  pro: { label: 'Pro', questions: 200, windowDays: 30, windowLabel: 'month' },
+  free: { label: 'Free', questions: 5, windowDays: 7, windowLabel: 'week', price: null },
+  pro: { label: 'Pro', questions: 100, windowDays: 30, windowLabel: 'month', price: '$10/month' },
 } as const
 
 export type PlanId = keyof typeof PLANS

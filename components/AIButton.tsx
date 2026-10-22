@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useAIFocus } from '@/lib/aiFocus'
+import { PLANS } from '@/lib/consultant/plans'
 
 interface Turn { role: 'user' | 'assistant'; content: string }
 interface Allowance { plan: 'free' | 'pro'; limit: number; used: number; remaining: number; windowLabel: string; resetsAt: string | null }
@@ -215,7 +216,7 @@ function ConsultantDrawer({ turns, setTurns, onClose }: {
               </p>
               {allowance.plan === 'free' && (
                 <p className="text-[#9ca3af] text-xs">
-                  <span className="text-white font-bold">MarketJump Pro</span> · $20/month · 200 questions a month, all built on your own calls and the MarketJump community. Coming soon.
+                  <span className="text-white font-bold">MarketJump Pro</span> · {PLANS.pro.price} · {PLANS.pro.questions} questions a {PLANS.pro.windowLabel}, all built on your own calls and the MarketJump community. Coming soon.
                 </p>
               )}
             </div>
